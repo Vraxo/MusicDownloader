@@ -1,0 +1,503 @@
+<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\AppSettings.cs">
+namespace MusicDownloader;
+
+public static class AppSettings
+{
+    // Paths
+    public const string CsvFile = "Data\\Collection.csv";
+    public const string BaseDataDir = "D:\\Parsa Stuff\\Music";
+    public const string CookieFile = "Data\\cookies.txt";
+
+    // Executables
+    public const string YtDlpExe = "yt-dlp";
+    public const string FfmpegExe = "ffmpeg";
+    public const string FallbackYtDlpExe = @"D:\Program Files\yt-dlp\yt-dlp.exe";
+
+    // Audio Settings
+    public const string AudioFormat = "m4a";
+    public const int AudioBitrateKbps = 320;
+
+    public const bool PreservePitchWhenChangingTempo = false;
+}
+</file>
+
+<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\FfmpegCommandBuilder.cs">
+using System.Globalization;
+
+namespace MusicDownloader;
+
+public class FfmpegCommandBuilder
+{
+    private readonly Track _track;
+    private readonly string _inputFile;
+    private readonly string _outputFile;
+    private readonly string _filterOpts;
+
+    public FfmpegCommandBuilder(Track track, string inputFile, string outputFile)
+    {
+        _track = track;
+        _inputFile = inputFile;
+        _outputFile = outputFile;
+        _filterOpts = BuildFilterOptions();
+    }
+
+    public string Build()
+    {
+        string trimOpts = BuildTrimOptions();
+
+        if (!string.IsNullOrEmpty(_filterOpts))
+        {
+            return BuildFilterCommand(trimOpts);
+        }
+
+        return BuildSimpleCopyCommand(trimOpts);
+    }
+
+    private string BuildFilterCommand(string trimOpts)
+    {
+        return $"-y {trimOpts} " +
+               $"-i \"{_inputFile}\" {_filterOpts} " +
+               "-map 0:a -map 0:v " +
+               BuildMetadataArgs() +
+               "-map_metadata -1 " +
+               $"-c:a aac -b:a {AppSettings.AudioBitrateKbps}k " +
+               "-c:v copy " +
+               $"\"{_outputFile}\"";
+    }
+
+    private string BuildSimpleCopyCommand(string trimOpts)
+    {
+        return $"-y {trimOpts} " +
+               $"-i \"{_inputFile}\" " +
+               "-map 0 " +
+               BuildMetadataArgs() +
+               "-map_metadata -1 " +
+               "-c copy " +
+               $"\"{_outputFile}\"";
+    }
+
+    private string BuildMetadataArgs()
+    {
+        return $"-metadata title=\"{_track.Title}\" " +
+               $"-metadata artist=\"{_track.Artist}\" " +
+               $"-metadata album=\"{_track.Album}\" ";
+    }
+
+    private string BuildTrimOptions()
+    {
+        if (string.IsNullOrWhiteSpace(_track.Range))
+        {
+            return "";
+        }
+
+        string[] parts = _track.Range.Split('-');
+        if (parts.Length != 2)
+        {
+            return "";
+        }
+
+        string start = parts[0].Trim();
+        string end = parts[1].Trim();
+
+        return !string.IsNullOrEmpty(start) && !string.IsNullOrEmpty(end)
+            ? $"-ss {start} -to {end}"
+            : "";
+    }
+
+    private string BuildFilterOptions()
+    {
+        if (string.IsNullOrWhiteSpace(_track.Tempo) || !double.TryParse(_track.Tempo, NumberStyles.Any, CultureInfo.InvariantCulture, out double tempoPercent))
+        {
+            return "";
+        }
+
+        double tempoMultiplier = tempoPercent / 100.0;
+
+        if (AppSettings.PreservePitchWhenChangingTempo)
+        {
+            string tempoFormatted = tempoMultiplier.ToString("0.000", CultureInfo.InvariantCulture);
+            return $"-filter:a \"atempo={tempoFormatted}\"";
+        }
+        else
+        {
+            // Pre-calculate the new sample rate to avoid issues with ffmpeg's expression parser.
+            // We assume a 48000Hz source rate, which is standard for web audio and confirmed in logs.
+            int newSampleRate = (int)Math.Round(48000 * tempoMultiplier);
+            return $"-filter:a \"asetrate={newSampleRate}\"";
+        }
+    }
+}
+</file>
+
+<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\Log.cs">
+namespace MusicDownloader;
+
+public class Log
+{
+    private const ConsoleColor InfoColor = ConsoleColor.Gray;
+    private const ConsoleColor WarningColor = ConsoleColor.Yellow;
+    private const ConsoleColor ErrorColor = ConsoleColor.Red;
+    private const ConsoleColor ActionColor = ConsoleColor.Cyan;
+    private const ConsoleColor SuccessColor = ConsoleColor.Green;
+
+    public static void Info(string message)
+    {
+        Print(InfoColor, message);
+    }
+
+    public static void Warning(string message)
+    {
+        Print(WarningColor, message);
+    }
+
+    public static void Error(string message)
+    {
+        Print(ErrorColor, message);
+    }
+
+    public static void Action(string message)
+    {
+        Print(ActionColor, message);
+    }
+
+    public static void Success(string message)
+    {
+        Print(SuccessColor, message);
+    }
+
+    private static void Print(ConsoleColor color, string message)
+    {
+        Console.ForegroundColor = color;
+        Console.WriteLine(message);
+        Console.ResetColor();
+    }
+}
+</file>
+
+<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\ProcessExecutor.cs">
+using System.ComponentModel;
+using System.Diagnostics;
+
+namespace MusicDownloader;
+
+public class ProcessExecutor
+{
+    public static int Run(string exe, string args)
+    {
+        try
+        {
+            using Process proc = new()
+            {
+                StartInfo = new()
+                {
+                    FileName = exe,
+                    Arguments = args,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            proc.OutputDataReceived += (_, e) => { if (!string.IsNullOrEmpty(e.Data)) Log.Info(e.Data); };
+            proc.ErrorDataReceived += (_, e) => { if (!string.IsNullOrEmpty(e.Data)) Log.Error(e.Data); };
+
+            proc.Start();
+            proc.BeginOutputReadLine();
+            proc.BeginErrorReadLine();
+            proc.WaitForExit();
+
+            return proc.ExitCode;
+        }
+        catch (Win32Exception)
+        {
+            // Re-throw to be handled by the caller, e.g., for fallback logic.
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Unexpected error running '{exe}': {ex.Message}");
+            Environment.Exit(1);
+            return -1;
+        }
+    }
+
+    public static int RunWithFallback(string exe, string fallbackExe, string args)
+    {
+        try
+        {
+            return Run(exe, args);
+        }
+        catch (Win32Exception)
+        {
+            Log.Warning($"'{exe}' not found, trying '{fallbackExe}'...");
+
+            try
+            {
+                return Run(fallbackExe, args);
+            }
+            catch (Win32Exception)
+            {
+                Log.Error($"Neither '{exe}' nor '{fallbackExe}' were found.");
+                Environment.Exit(1);
+                return -1;
+            }
+        }
+    }
+}
+</file>
+
+<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\Program.cs">
+namespace MusicDownloader;
+
+class Program
+{
+    static async Task Main()
+    {
+        try
+        {
+            Directory.CreateDirectory(AppSettings.BaseDataDir);
+            Log.Info("Starting processing...");
+            await ProcessTracksFromCsvAsync();
+            Log.Success("All downloads and processing finished.");
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Fatal error: {ex.Message}");
+        }
+
+        Log.Info("Press any key to exit...");
+        Console.ReadKey();
+    }
+
+    static async Task ProcessTracksFromCsvAsync()
+    {
+        var tracks = GetTracksFromCsv();
+        var options = new ParallelOptions { MaxDegreeOfParallelism = 4 };
+
+        await Parallel.ForEachAsync(tracks, options, async (track, _) =>
+        {
+            try
+            {
+                var trackProcessor = new TrackProcessor(track);
+                await trackProcessor.ProcessAsync();
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Processing failed for track '{track.Title}': {ex.Message}");
+            }
+        });
+    }
+
+    static IEnumerable<Track> GetTracksFromCsv()
+    {
+        if (!File.Exists(AppSettings.CsvFile))
+        {
+            Log.Error($"CSV input file '{AppSettings.CsvFile}' not found.");
+            Environment.Exit(1);
+        }
+
+        return File.ReadAllLines(AppSettings.CsvFile)
+            .Skip(1)
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .Select(line =>
+            {
+                string[] fields = line.Split('|');
+                if (fields.Length < 6)
+                {
+                    Log.Warning("Skipping invalid line: not enough fields.");
+                    return null;
+                }
+                return new Track(fields);
+            })
+            .Where(track => track != null)!; // Filter out nulls from invalid lines
+    }
+}
+</file>
+
+<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\Track.cs">
+namespace MusicDownloader;
+
+public class Track
+{
+    public string Title { get; }
+    public string Artist { get; }
+    public string Album { get; }
+    public string Url { get; }
+    public string Range { get; }
+    public string Tempo { get; }
+
+    public Track(IReadOnlyList<string> fields)
+    {
+        Title = Clean(fields[0]);
+        Artist = Clean(fields[1]);
+        Album = Clean(fields[2]);
+        Url = Clean(fields[3]);
+        Range = Clean(fields[4]);
+        Tempo = Clean(fields[5]);
+    }
+
+    public static string SafeFileName(string name)
+    {
+        foreach (char c in Path.GetInvalidFileNameChars())
+        {
+            name = name.Replace(c, '_');
+        }
+
+        return name;
+    }
+
+    private static string Clean(string s)
+    {
+        return s.Trim();
+    }
+}
+</file>
+
+<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\TrackProcessor.cs">
+namespace MusicDownloader;
+
+public class TrackProcessor
+{
+    private readonly Track _track;
+    private readonly string _albumDir;
+
+    public TrackProcessor(Track track)
+    {
+        _track = track;
+        _albumDir = Path.Combine(AppSettings.BaseDataDir, Track.SafeFileName(_track.Album));
+    }
+
+    public async Task ProcessAsync()
+    {
+        Directory.CreateDirectory(_albumDir);
+
+        string outputFile = Path.Combine(_albumDir, Track.SafeFileName(_track.Title) + $".{AppSettings.AudioFormat}");
+        if (File.Exists(outputFile))
+        {
+            Log.Info($"Skipping \"{_track.Title}\" — already exists.");
+            return;
+        }
+
+        string tempFile = Path.Combine(_albumDir, "temp." + AppSettings.AudioFormat);
+        string outFile = Path.Combine(_albumDir, "out." + AppSettings.AudioFormat);
+
+        try
+        {
+            if (!await DownloadAsync(tempFile)) return;
+            if (!await ProcessAudioAsync(tempFile, outFile)) return;
+
+            File.Move(outFile, outputFile, true);
+            Log.Success($"Done: {_track.Title}");
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed processing '{_track.Title}': {ex.Message}");
+        }
+        finally
+        {
+            CleanupTempFiles();
+            Console.WriteLine();
+        }
+    }
+
+    private async Task<bool> DownloadAsync(string tempFilePath)
+    {
+        Log.Action($"Downloading: {_track.Title}");
+        var command = new YtDlpCommandBuilder(_track, tempFilePath).Build();
+
+        int exitCode = await Task.Run(() => ProcessExecutor.RunWithFallback(
+            AppSettings.YtDlpExe,
+            AppSettings.FallbackYtDlpExe,
+            command
+        ));
+
+        if (exitCode != 0)
+        {
+            Log.Error($"yt-dlp failed for {_track.Title}, skipping...");
+            return false;
+        }
+        return true;
+    }
+
+    private async Task<bool> ProcessAudioAsync(string inputFile, string outputFile)
+    {
+        Log.Action($"Processing: {_track.Title}");
+        var command = new FfmpegCommandBuilder(_track, inputFile, outputFile).Build();
+
+        int exitCode = await Task.Run(() => ProcessExecutor.Run(AppSettings.FfmpegExe, command));
+
+        if (exitCode != 0)
+        {
+            Log.Error($"ffmpeg processing failed for {_track.Title}, skipping...");
+            return false;
+        }
+        return true;
+    }
+
+    private void CleanupTempFiles()
+    {
+        // Delete any files starting with "temp." or "out.", regardless of extension.
+        // This is more robust and cleans up intermediate files (e.g., temp.webm)
+        // that yt-dlp might create before conversion.
+        var tempFiles = Directory.EnumerateFiles(_albumDir, "temp.*")
+            .Concat(Directory.EnumerateFiles(_albumDir, "out.*"));
+
+        foreach (var file in tempFiles)
+        {
+            try
+            {
+                File.Delete(file);
+            }
+            catch
+            {
+                // Ignore errors if the file is locked or doesn't exist.
+            }
+        }
+    }
+}
+</file>
+
+<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\YtDlpCommandBuilder.cs">
+using System.IO;
+
+namespace MusicDownloader;
+
+public class YtDlpCommandBuilder
+{
+    private readonly Track _track;
+    private readonly string _tempFilePath;
+
+    public YtDlpCommandBuilder(Track track, string tempFilePath)
+    {
+        _track = track;
+        _tempFilePath = tempFilePath;
+    }
+
+    public string Build()
+    {
+        string cookieArg = File.Exists(AppSettings.CookieFile)
+            ? $"--cookies \"{AppSettings.CookieFile}\" "
+            : "";
+
+        // Prefer Opus when available (usually in WebM). Fall back to generic bestaudio otherwise.
+        // This requests the best audio stream that uses the opus codec, then falls back to bestaudio.
+        string formatArg = "-f \"bestaudio[acodec=opus]/bestaudio\" ";
+
+        // This argument helps yt-dlp handle YouTube's rate-limiting (HTTP 429) more gracefully.
+        string extractorArgs = "--extractor-args \"youtubetab:skip=authcheck\" ";
+
+        return $"{formatArg}" +
+               $"\"{_track.Url}\" " +
+               extractorArgs +
+               "--extract-audio " +
+               $"--audio-format {AppSettings.AudioFormat} " +
+               "--audio-quality 0 " +
+               "--embed-thumbnail " +
+               "--no-add-metadata " +
+               $"--no-mtime {cookieArg}" +
+               $"-o \"{_tempFilePath}\"";
+    }
+}
+</file>
+
