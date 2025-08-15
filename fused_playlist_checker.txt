@@ -1,0 +1,245 @@
+<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\PlaylistChecker\Source\PlaylistService.cs">
+namespace MusicDownloader;
+
+/// <summary>
+/// Orchestrates the process of mapping songs to playlists.
+/// </summary>
+public static class PlaylistService
+{
+    public static Dictionary<string, List<string>> BuildSongPlaylistMap()
+    {
+        string[] supportedExtensions = GetSupportedExtensions();
+        IEnumerable<string> musicFiles = FindMusicFiles(supportedExtensions);
+
+        Dictionary<string, List<string>> songToPlaylistsMap = InitializeSongMap(musicFiles);
+
+        if (songToPlaylistsMap.Count == 0)
+        {
+            Log.Info($"No music files with supported extensions " +
+                $"({string.Join(", ", supportedExtensions)}) " +
+                $"found to check.");
+            return songToPlaylistsMap;
+        }
+
+        List<string> playlistFiles = FindPlaylistFiles();
+
+        if (playlistFiles.Count == 0)
+        {
+            Log.Info("No .m3u playlists found. All songs will be marked as not in any playlist.");
+        }
+        else
+        {
+            ProcessPlaylists(playlistFiles, songToPlaylistsMap);
+        }
+
+        return songToPlaylistsMap;
+    }
+
+    private static string[] GetSupportedExtensions()
+    {
+        return new[] { ".mp3", $".{AppSettings.AudioFormat}" }
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static IEnumerable<string> FindMusicFiles(string[] supportedExtensions)
+    {
+        return Directory.EnumerateFiles(AppSettings.BaseDataDir, "*.*", SearchOption.AllDirectories)
+            .Where(file => supportedExtensions.Contains(Path.GetExtension(file)?.ToLowerInvariant()));
+    }
+
+    private static List<string> FindPlaylistFiles()
+    {
+        return Directory.EnumerateFiles(AppSettings.BaseDataDir, "*.m3u", SearchOption.AllDirectories).ToList();
+    }
+
+    private static Dictionary<string, List<string>> InitializeSongMap(IEnumerable<string> musicFiles)
+    {
+        var songMap = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (string musicFile in musicFiles)
+        {
+            songMap[Path.GetFullPath(musicFile)] = [];
+        }
+        return songMap;
+    }
+
+    private static void ProcessPlaylists(IEnumerable<string> playlistFiles, Dictionary<string, List<string>> songToPlaylistsMap)
+    {
+        foreach (var playlistFile in playlistFiles)
+        {
+            string? playlistDir = Path.GetDirectoryName(playlistFile);
+            if (playlistDir is null) continue;
+
+            string playlistName = Path.GetFileNameWithoutExtension(playlistFile);
+            string[] lines = File.ReadAllLines(playlistFile);
+
+            if (ShouldSkipPlaylist(lines, playlistName))
+            {
+                continue;
+            }
+
+            foreach (string line in lines.Where(l => !string.IsNullOrWhiteSpace(l) && !l.TrimStart().StartsWith("#")))
+            {
+                string songFullPath = Path.GetFullPath(Path.Combine(playlistDir, line));
+
+                if (songToPlaylistsMap.TryGetValue(songFullPath, out List<string>? playlists))
+                {
+                    playlists.Add(playlistName);
+                }
+                else
+                {
+                    Log.Warning($"Song '{line}' from playlist '{playlistName}' not found in music library, skipping.");
+                }
+            }
+        }
+    }
+
+    private static bool ShouldSkipPlaylist(string[] lines, string playlistName)
+    {
+        if (lines.Length > 0 && lines[0].Trim().StartsWith('#') && lines[0].ToUpperInvariant().Contains("MANUAL"))
+        {
+            Log.Info($"Skipping playlist '{playlistName}': Marked as manually sorted.");
+            return true;
+        }
+        return false;
+    }
+}
+</file>
+
+<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\PlaylistChecker\Source\Program.cs">
+namespace MusicDownloader;
+
+public static class Program
+{
+    public static void Main()
+    {
+        Log.Info("Starting playlist check...");
+
+        try
+        {
+            Dictionary<string, List<string>> songToPlaylistsMap = PlaylistService.BuildSongPlaylistMap();
+
+            if (songToPlaylistsMap.Count > 0)
+            {
+                ReportGenerator reportGenerator = new();
+                (string reportContent, ReportSummary summary) = reportGenerator.Generate(songToPlaylistsMap);
+
+                ReportWriter reportWriter = new();
+                reportWriter.Write(reportContent, summary);
+            }
+        }
+        catch (DirectoryNotFoundException)
+        {
+            Log.Warning($"Base data directory '{AppSettings.BaseDataDir}' not found. Skipping playlist check.");
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"An error occurred during playlist check: {ex.Message}");
+        }
+    }
+}
+</file>
+
+<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\PlaylistChecker\Source\ReportGenerator.cs">
+using System.Text;
+
+namespace MusicDownloader;
+
+/// <summary>
+/// A summary of the playlist report.
+/// </summary>
+/// <param name="TotalSongs">Total number of songs found.</param>
+/// <param name="SongsInPlaylists">Number of songs present in at least one playlist.</param>
+/// <param name="SongsNotInPlaylists">Number of songs not present in any playlist.</param>
+public record ReportSummary(int TotalSongs, int SongsInPlaylists, int SongsNotInPlaylists);
+
+/// <summary>
+/// Generates a formatted report from song-to-playlist data.
+/// </summary>
+public class ReportGenerator
+{
+    public (string ReportContent, ReportSummary Summary) Generate(IReadOnlyDictionary<string, List<string>> songToPlaylistsMap)
+    {
+        var songsForReport = songToPlaylistsMap
+            .Select(kvp => new
+            {
+                RelativePath = Path.GetRelativePath(AppSettings.BaseDataDir, kvp.Key),
+                Playlists = kvp.Value
+            })
+            .OrderBy(s => s.RelativePath, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        StringBuilder reportContent = new();
+        int maxSongPathWidth = songsForReport.Any() ? songsForReport.Max(s => s.RelativePath.Length) : 0;
+        maxSongPathWidth = int.Max(maxSongPathWidth, "Song".Length);
+
+        string songHeader = "Song".PadRight(maxSongPathWidth);
+        const string playlistHeader = "Playlists";
+
+        reportContent.AppendLine("=== Playlist Membership Report ===");
+        reportContent.AppendLine();
+        reportContent.AppendLine($"{songHeader} | {playlistHeader}");
+        reportContent.AppendLine($"{new string('-', maxSongPathWidth)}-|-{new string('-', playlistHeader.Length)}");
+
+        foreach (var song in songsForReport)
+        {
+            string songColumn = song.RelativePath.PadRight(maxSongPathWidth);
+            string playlistsColumn = song.Playlists.Count != 0
+                ? string.Join(", ", song.Playlists.OrderBy(p => p, StringComparer.OrdinalIgnoreCase))
+                : "<None>";
+
+            reportContent.AppendLine($"{songColumn} | {playlistsColumn}");
+        }
+
+        int totalSongs = songsForReport.Count;
+        int songsNotInPlaylists = songsForReport.Count(s => s.Playlists.Count == 0);
+        int songsInPlaylists = totalSongs - songsNotInPlaylists;
+        var summary = new ReportSummary(totalSongs, songsInPlaylists, songsNotInPlaylists);
+
+        reportContent.AppendLine();
+        reportContent.AppendLine("--- Report Summary ---");
+        reportContent.AppendLine($"Total Songs: {summary.TotalSongs}");
+        reportContent.AppendLine($"Songs in at least one playlist: {summary.SongsInPlaylists}");
+        reportContent.AppendLine($"Songs not in any playlist: {summary.SongsNotInPlaylists}");
+
+        return (reportContent.ToString(), summary);
+    }
+}
+</file>
+
+<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\PlaylistChecker\Source\ReportWriter.cs">
+namespace MusicDownloader;
+
+/// <summary>
+/// Writes the generated report to a file and logs a summary to the console.
+/// </summary>
+public class ReportWriter
+{
+    public void Write(string reportContent, ReportSummary summary)
+    {
+        try
+        {
+            File.WriteAllText(AppSettings.PlaylistCheckReportFile, reportContent);
+            Log.Success($"Report successfully saved to '{AppSettings.PlaylistCheckReportFile}'");
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to write report file: {ex.Message}");
+        }
+
+        Log.Action("\n--- Report Summary (also saved to file) ---");
+        Log.Info($"Total Songs: {summary.TotalSongs}");
+        Log.Success($"Songs in at least one playlist: {summary.SongsInPlaylists}");
+
+        if (summary.SongsNotInPlaylists > 0)
+        {
+            Log.Warning($"Songs not in any playlist: {summary.SongsNotInPlaylists}");
+        }
+        else
+        {
+            Log.Success("All songs are in at least one playlist!");
+        }
+    }
+}
+</file>
+

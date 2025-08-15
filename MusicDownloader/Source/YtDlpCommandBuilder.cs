@@ -1,6 +1,4 @@
-﻿using System.IO;
-
-namespace MusicDownloader;
+﻿namespace MusicDownloader;
 
 public class YtDlpCommandBuilder
 {
@@ -33,7 +31,6 @@ public class YtDlpCommandBuilder
                $"--audio-format {AppSettings.AudioFormat} " +
                "--audio-quality 0 " +
                "--embed-thumbnail " +
-               "--write-thumbnail " +
                "--no-add-metadata " +
                $"--no-mtime {cookieArg}" +
                $"-o \"{_tempFilePath}\"";

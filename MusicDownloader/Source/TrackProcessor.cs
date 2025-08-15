@@ -28,10 +28,7 @@ public class TrackProcessor
         try
         {
             if (!await DownloadAsync(tempFile)) return;
-
-            string? thumbnailFile = FindThumbnailFile(_albumDir, "temp");
-
-            if (!await ProcessAudioAsync(tempFile, outFile, thumbnailFile)) return;
+            if (!await ProcessAudioAsync(tempFile, outFile)) return;
 
             File.Move(outFile, outputFile, true);
             Log.Success($"Done: {_track.Title}");
@@ -66,10 +63,10 @@ public class TrackProcessor
         return true;
     }
 
-    private async Task<bool> ProcessAudioAsync(string inputFile, string outputFile, string? thumbnailFile)
+    private async Task<bool> ProcessAudioAsync(string inputFile, string outputFile)
     {
         Log.Action($"Processing: {_track.Title}");
-        var command = new FfmpegCommandBuilder(_track, inputFile, outputFile, thumbnailFile).Build();
+        var command = new FfmpegCommandBuilder(_track, inputFile, outputFile).Build();
 
         int exitCode = await Task.Run(() => ProcessExecutor.Run(AppSettings.FfmpegExe, command));
 
@@ -79,18 +76,6 @@ public class TrackProcessor
             return false;
         }
         return true;
-    }
-
-    private string? FindThumbnailFile(string directory, string baseName)
-    {
-        var validExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
-        var files = Directory.EnumerateFiles(directory, baseName + ".*");
-
-        return files.FirstOrDefault(file =>
-        {
-            string extension = Path.GetExtension(file).ToLowerInvariant();
-            return validExtensions.Contains(extension);
-        });
     }
 
     private void CleanupTempFiles()

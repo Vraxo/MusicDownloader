@@ -8,68 +8,36 @@ public class FfmpegCommandBuilder
     private readonly string _inputFile;
     private readonly string _outputFile;
     private readonly string _filterOpts;
-    private readonly string? _thumbnailFile;
 
-    public FfmpegCommandBuilder(Track track, string inputFile, string outputFile, string? thumbnailFile)
+    public FfmpegCommandBuilder(Track track, string inputFile, string outputFile)
     {
         _track = track;
         _inputFile = inputFile;
         _outputFile = outputFile;
-        _thumbnailFile = thumbnailFile;
         _filterOpts = BuildFilterOptions();
     }
 
     public string Build()
     {
         string trimOpts = BuildTrimOptions();
-        bool hasFilter = !string.IsNullOrWhiteSpace(_filterOpts);
-        bool hasThumbnail = !string.IsNullOrWhiteSpace(_thumbnailFile);
 
-        if (hasFilter)
+        if (!string.IsNullOrEmpty(_filterOpts))
         {
-            return hasThumbnail
-                ? BuildFilteredWithThumbnailCommand(trimOpts)
-                : BuildFilterOnlyCommand(trimOpts);
+            return BuildFilterCommand(trimOpts);
         }
 
-        return hasThumbnail
-            ? BuildSimpleCopyWithThumbnailCommand(trimOpts)
-            : BuildSimpleCopyCommand(trimOpts);
+        return BuildSimpleCopyCommand(trimOpts);
     }
 
-    private string BuildFilteredWithThumbnailCommand(string trimOpts)
-    {
-        return $"-y {trimOpts} " +
-               $"-i \"{_inputFile}\" -i \"{_thumbnailFile}\" {_filterOpts} " +
-               "-map 0:a -map 1:v " +
-               BuildMetadataArgs() +
-               "-map_metadata -1 -disposition:v attached_pic " +
-               $"-c:a aac -b:a {AppSettings.AudioBitrateKbps}k " +
-               "-c:v mjpeg " +
-               $"\"{_outputFile}\"";
-    }
-
-    private string BuildFilterOnlyCommand(string trimOpts)
+    private string BuildFilterCommand(string trimOpts)
     {
         return $"-y {trimOpts} " +
                $"-i \"{_inputFile}\" {_filterOpts} " +
-               "-map 0:a -map 0:v? " +
+               "-map 0:a -map 0:v " +
                BuildMetadataArgs() +
                "-map_metadata -1 " +
                $"-c:a aac -b:a {AppSettings.AudioBitrateKbps}k " +
                "-c:v copy " +
-               $"\"{_outputFile}\"";
-    }
-
-    private string BuildSimpleCopyWithThumbnailCommand(string trimOpts)
-    {
-        return $"-y {trimOpts} " +
-               $"-i \"{_inputFile}\" -i \"{_thumbnailFile}\" " +
-               "-map 0:a -map 1:v " +
-               BuildMetadataArgs() +
-               "-map_metadata -1 -disposition:v attached_pic " +
-               "-c:a copy " +
-               "-c:v mjpeg " +
                $"\"{_outputFile}\"";
     }
 

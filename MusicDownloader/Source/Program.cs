@@ -10,8 +10,6 @@ class Program
             Log.Info("Starting processing...");
             await ProcessTracksFromCsvAsync();
             Log.Success("All downloads and processing finished.");
-            Console.WriteLine();
-            PlaylistSorter.SortAllPlaylists();
         }
         catch (Exception ex)
         {
@@ -25,14 +23,18 @@ class Program
 
     static async Task ProcessTracksFromCsvAsync()
     {
-        var tracks = GetTracksFromCsv();
-        var options = new ParallelOptions { MaxDegreeOfParallelism = 4 };
+        IEnumerable<Track> tracks = GetTracksFromCsv();
+        
+        ParallelOptions options = new() 
+        { 
+            MaxDegreeOfParallelism = 4 
+        };
 
         await Parallel.ForEachAsync(tracks, options, async (track, _) =>
         {
             try
             {
-                var trackProcessor = new TrackProcessor(track);
+                TrackProcessor trackProcessor = new(track);
                 await trackProcessor.ProcessAsync();
             }
             catch (Exception ex)
@@ -63,6 +65,6 @@ class Program
                 }
                 return new Track(fields);
             })
-            .Where(track => track != null)!; // Filter out nulls from invalid lines
+            .Where(track => track is not null)!; // Filter out nulls from invalid lines
     }
 }
