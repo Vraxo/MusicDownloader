@@ -14,7 +14,7 @@ public class Track
         Title = Clean(fields[0]);
         Artist = Clean(fields[1]);
         Album = Clean(fields[2]);
-        Url = Clean(fields[3]);
+        Url = ProcessUrl(Clean(fields[3]));
         Range = Clean(fields[4]);
         Tempo = Clean(fields[5]);
     }
@@ -27,6 +27,13 @@ public class Track
         }
 
         return name;
+    }
+
+    private static string ProcessUrl(string urlOrId)
+    {
+        return !string.IsNullOrWhiteSpace(urlOrId) && !urlOrId.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+            ? $"https://www.youtube.com/watch?v={urlOrId}"
+            : urlOrId;
     }
 
     private static string Clean(string s)

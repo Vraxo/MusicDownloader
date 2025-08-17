@@ -27,7 +27,7 @@ class Program
         
         ParallelOptions options = new() 
         { 
-            MaxDegreeOfParallelism = 4 
+            MaxDegreeOfParallelism = 1
         };
 
         await Parallel.ForEachAsync(tracks, options, async (track, _) =>

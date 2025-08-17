@@ -53,7 +53,7 @@ public static class PlaylistChecker
 
     private static void ProcessPlaylists(IEnumerable<string> playlistFiles, Dictionary<string, List<string>> songToPlaylistsMap)
     {
-        foreach (var playlistFile in playlistFiles)
+        foreach (string playlistFile in playlistFiles)
         {
             string? playlistDir = Path.GetDirectoryName(playlistFile);
             
@@ -70,14 +70,13 @@ public static class PlaylistChecker
             {
                 string songFullPath = Path.GetFullPath(Path.Combine(playlistDir, line));
 
-                if (songToPlaylistsMap.TryGetValue(songFullPath, out List<string>? playlists))
-                {
-                    playlists.Add(playlistName);
-                }
-                else
+                if (!songToPlaylistsMap.TryGetValue(songFullPath, out List<string>? playlists))
                 {
                     Log.Warning($"Song '{line}' from playlist '{playlistName}' not found in music library, skipping.");
+                    return;
                 }
+                
+                playlists.Add(playlistName);
             }
         }
     }
@@ -117,7 +116,7 @@ public static class PlaylistChecker
             string songColumn = song.RelativePath.PadRight(maxSongPathWidth);
             string playlistsColumn;
 
-            if (song.Playlists.Any())
+            if (song.Playlists.Count != 0)
             {
                 playlistsColumn = string.Join(", ", song.Playlists.OrderBy(p => p, StringComparer.OrdinalIgnoreCase));
             }

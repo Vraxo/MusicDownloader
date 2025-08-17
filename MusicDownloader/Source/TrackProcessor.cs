@@ -16,6 +16,7 @@ public class TrackProcessor
         Directory.CreateDirectory(_albumDir);
 
         string outputFile = Path.Combine(_albumDir, Track.SafeFileName(_track.Title) + $".{AppSettings.AudioFormat}");
+        
         if (File.Exists(outputFile))
         {
             Log.Info($"Skipping \"{_track.Title}\" — already exists.");
@@ -27,8 +28,15 @@ public class TrackProcessor
 
         try
         {
-            if (!await DownloadAsync(tempFile)) return;
-            if (!await ProcessAudioAsync(tempFile, outFile)) return;
+            if (!await DownloadAsync(tempFile))
+            {
+                return;
+            }
+
+            if (!await ProcessAudioAsync(tempFile, outFile))
+            {
+                return;
+            }
 
             File.Move(outFile, outputFile, true);
             Log.Success($"Done: {_track.Title}");
@@ -47,7 +55,8 @@ public class TrackProcessor
     private async Task<bool> DownloadAsync(string tempFilePath)
     {
         Log.Action($"Downloading: {_track.Title}");
-        var command = new YtDlpCommandBuilder(_track, tempFilePath).Build();
+        
+        string command = new YtDlpCommandBuilder(_track, tempFilePath).Build();
 
         int exitCode = await Task.Run(() => ProcessExecutor.RunWithFallback(
             AppSettings.YtDlpExe,
@@ -60,6 +69,7 @@ public class TrackProcessor
             Log.Error($"yt-dlp failed for {_track.Title}, skipping...");
             return false;
         }
+
         return true;
     }
 
@@ -75,6 +85,7 @@ public class TrackProcessor
             Log.Error($"ffmpeg processing failed for {_track.Title}, skipping...");
             return false;
         }
+
         return true;
     }
 
@@ -83,7 +94,7 @@ public class TrackProcessor
         // Delete any files starting with "temp." or "out.", regardless of extension.
         // This is more robust and cleans up intermediate files (e.g., temp.webm)
         // that yt-dlp might create before conversion.
-        var tempFiles = Directory.EnumerateFiles(_albumDir, "temp.*")
+        IEnumerable<string> tempFiles = Directory.EnumerateFiles(_albumDir, "temp.*")
             .Concat(Directory.EnumerateFiles(_albumDir, "out.*"));
 
         foreach (var file in tempFiles)
