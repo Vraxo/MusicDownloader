@@ -4,7 +4,7 @@ namespace MusicDownloader;
 public static class AppSettings
 {
     // Paths
-    public const string CsvFile = "Data\\Collection.csv";
+    public const string CsvDir = "Data\\Collections";
     public const string BaseDataDir = "D:\\Parsa Stuff\\Music";
     public const string CookieFile = "Data\\Cookies.txt";
     public const string PlaylistCheckReportFile = "Data\\PlaylistReport.txt";
@@ -231,7 +231,7 @@ public static class PlaylistChecker
 
     private static void ProcessPlaylists(IEnumerable<string> playlistFiles, Dictionary<string, List<string>> songToPlaylistsMap)
     {
-        foreach (var playlistFile in playlistFiles)
+        foreach (string playlistFile in playlistFiles)
         {
             string? playlistDir = Path.GetDirectoryName(playlistFile);
             
@@ -523,10 +523,10 @@ class Program
     static async Task ProcessTracksFromCsvAsync()
     {
         IEnumerable<Track> tracks = GetTracksFromCsv();
-        
-        ParallelOptions options = new() 
-        { 
-            MaxDegreeOfParallelism = 4 
+
+        ParallelOptions options = new()
+        {
+            MaxDegreeOfParallelism = 1
         };
 
         await Parallel.ForEachAsync(tracks, options, async (track, _) =>
@@ -545,14 +545,22 @@ class Program
 
     static IEnumerable<Track> GetTracksFromCsv()
     {
-        if (!File.Exists(AppSettings.CsvFile))
+        if (!Directory.Exists(AppSettings.CsvDir))
         {
-            Log.Error($"CSV input file '{AppSettings.CsvFile}' not found.");
+            Log.Error($"CSV input directory '{AppSettings.CsvDir}' not found.");
             Environment.Exit(1);
         }
 
-        return File.ReadAllLines(AppSettings.CsvFile)
-            .Skip(1)
+        var csvFiles = Directory.EnumerateFiles(AppSettings.CsvDir, "*.csv").ToList();
+
+        if (csvFiles.Count == 0)
+        {
+            Log.Warning($"No .csv files found in '{AppSettings.CsvDir}'.");
+            return [];
+        }
+
+        return csvFiles
+            .SelectMany(file => File.ReadAllLines(file).Skip(1))
             .Where(line => !string.IsNullOrWhiteSpace(line))
             .Select(line =>
             {
@@ -586,7 +594,7 @@ public class Track
         Title = Clean(fields[0]);
         Artist = Clean(fields[1]);
         Album = Clean(fields[2]);
-        Url = Clean(fields[3]);
+        Url = ProcessUrl(Clean(fields[3]));
         Range = Clean(fields[4]);
         Tempo = Clean(fields[5]);
     }
@@ -599,6 +607,13 @@ public class Track
         }
 
         return name;
+    }
+
+    private static string ProcessUrl(string urlOrId)
+    {
+        return !string.IsNullOrWhiteSpace(urlOrId) && !urlOrId.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+            ? $"https://www.youtube.com/watch?v={urlOrId}"
+            : urlOrId;
     }
 
     private static string Clean(string s)
@@ -627,6 +642,7 @@ public class TrackProcessor
         Directory.CreateDirectory(_albumDir);
 
         string outputFile = Path.Combine(_albumDir, Track.SafeFileName(_track.Title) + $".{AppSettings.AudioFormat}");
+        
         if (File.Exists(outputFile))
         {
             Log.Info($"Skipping \"{_track.Title}\" — already exists.");
@@ -638,8 +654,15 @@ public class TrackProcessor
 
         try
         {
-            if (!await DownloadAsync(tempFile)) return;
-            if (!await ProcessAudioAsync(tempFile, outFile)) return;
+            if (!await DownloadAsync(tempFile))
+            {
+                return;
+            }
+
+            if (!await ProcessAudioAsync(tempFile, outFile))
+            {
+                return;
+            }
 
             File.Move(outFile, outputFile, true);
             Log.Success($"Done: {_track.Title}");
@@ -658,7 +681,8 @@ public class TrackProcessor
     private async Task<bool> DownloadAsync(string tempFilePath)
     {
         Log.Action($"Downloading: {_track.Title}");
-        var command = new YtDlpCommandBuilder(_track, tempFilePath).Build();
+        
+        string command = new YtDlpCommandBuilder(_track, tempFilePath).Build();
 
         int exitCode = await Task.Run(() => ProcessExecutor.RunWithFallback(
             AppSettings.YtDlpExe,
@@ -671,6 +695,7 @@ public class TrackProcessor
             Log.Error($"yt-dlp failed for {_track.Title}, skipping...");
             return false;
         }
+
         return true;
     }
 
@@ -686,6 +711,7 @@ public class TrackProcessor
             Log.Error($"ffmpeg processing failed for {_track.Title}, skipping...");
             return false;
         }
+
         return true;
     }
 
@@ -694,7 +720,7 @@ public class TrackProcessor
         // Delete any files starting with "temp." or "out.", regardless of extension.
         // This is more robust and cleans up intermediate files (e.g., temp.webm)
         // that yt-dlp might create before conversion.
-        var tempFiles = Directory.EnumerateFiles(_albumDir, "temp.*")
+        IEnumerable<string> tempFiles = Directory.EnumerateFiles(_albumDir, "temp.*")
             .Concat(Directory.EnumerateFiles(_albumDir, "out.*"));
 
         foreach (var file in tempFiles)

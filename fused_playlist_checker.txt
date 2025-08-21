@@ -1,9 +1,6 @@
 <file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\PlaylistChecker\Source\PlaylistService.cs">
 namespace MusicDownloader;
 
-/// <summary>
-/// Orchestrates the process of mapping songs to playlists.
-/// </summary>
 public static class PlaylistService
 {
     public static Dictionary<string, List<string>> BuildSongPlaylistMap()
@@ -55,28 +52,29 @@ public static class PlaylistService
 
     private static Dictionary<string, List<string>> InitializeSongMap(IEnumerable<string> musicFiles)
     {
-        var songMap = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, List<string>> songMap = new(StringComparer.OrdinalIgnoreCase);
+        
         foreach (string musicFile in musicFiles)
         {
             songMap[Path.GetFullPath(musicFile)] = [];
         }
+
         return songMap;
     }
 
     private static void ProcessPlaylists(IEnumerable<string> playlistFiles, Dictionary<string, List<string>> songToPlaylistsMap)
     {
-        foreach (var playlistFile in playlistFiles)
+        foreach (string playlistFile in playlistFiles)
         {
             string? playlistDir = Path.GetDirectoryName(playlistFile);
-            if (playlistDir is null) continue;
-
-            string playlistName = Path.GetFileNameWithoutExtension(playlistFile);
-            string[] lines = File.ReadAllLines(playlistFile);
-
-            if (ShouldSkipPlaylist(lines, playlistName))
+            
+            if (playlistDir is null)
             {
                 continue;
             }
+
+            string playlistName = Path.GetFileNameWithoutExtension(playlistFile);
+            string[] lines = File.ReadAllLines(playlistFile);
 
             foreach (string line in lines.Where(l => !string.IsNullOrWhiteSpace(l) && !l.TrimStart().StartsWith("#")))
             {
@@ -92,16 +90,6 @@ public static class PlaylistService
                 }
             }
         }
-    }
-
-    private static bool ShouldSkipPlaylist(string[] lines, string playlistName)
-    {
-        if (lines.Length > 0 && lines[0].Trim().StartsWith('#') && lines[0].ToUpperInvariant().Contains("MANUAL"))
-        {
-            Log.Info($"Skipping playlist '{playlistName}': Marked as manually sorted.");
-            return true;
-        }
-        return false;
     }
 }
 </file>
@@ -125,7 +113,7 @@ public static class Program
                 (string reportContent, ReportSummary summary) = reportGenerator.Generate(songToPlaylistsMap);
 
                 ReportWriter reportWriter = new();
-                reportWriter.Write(reportContent, summary);
+                ReportWriter.Write(reportContent, summary);
             }
         }
         catch (DirectoryNotFoundException)
@@ -210,12 +198,9 @@ public class ReportGenerator
 <file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\PlaylistChecker\Source\ReportWriter.cs">
 namespace MusicDownloader;
 
-/// <summary>
-/// Writes the generated report to a file and logs a summary to the console.
-/// </summary>
 public class ReportWriter
 {
-    public void Write(string reportContent, ReportSummary summary)
+    public static void Write(string reportContent, ReportSummary summary)
     {
         try
         {

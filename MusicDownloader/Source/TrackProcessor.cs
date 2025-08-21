@@ -16,10 +16,9 @@ public class TrackProcessor
         Directory.CreateDirectory(_albumDir);
 
         string outputFile = Path.Combine(_albumDir, Track.SafeFileName(_track.Title) + $".{AppSettings.AudioFormat}");
-        
+
         if (File.Exists(outputFile))
         {
-            Log.Info($"Skipping \"{_track.Title}\" — already exists.");
             return;
         }
 
@@ -55,14 +54,17 @@ public class TrackProcessor
     private async Task<bool> DownloadAsync(string tempFilePath)
     {
         Log.Action($"Downloading: {_track.Title}");
-        
+
         string command = new YtDlpCommandBuilder(_track, tempFilePath).Build();
 
-        int exitCode = await Task.Run(() => ProcessExecutor.RunWithFallback(
-            AppSettings.YtDlpExe,
-            AppSettings.FallbackYtDlpExe,
-            command
-        ));
+        int exitCode = await Task.Run(() =>
+        {
+            return ProcessExecutor.RunWithFallback(
+                AppSettings.YtDlpExe,
+                AppSettings.FallbackYtDlpExe,
+                command
+                );
+        });
 
         if (exitCode != 0)
         {
@@ -76,9 +78,13 @@ public class TrackProcessor
     private async Task<bool> ProcessAudioAsync(string inputFile, string outputFile)
     {
         Log.Action($"Processing: {_track.Title}");
-        var command = new FfmpegCommandBuilder(_track, inputFile, outputFile).Build();
 
-        int exitCode = await Task.Run(() => ProcessExecutor.Run(AppSettings.FfmpegExe, command));
+        string command = new FfmpegCommandBuilder(_track, inputFile, outputFile).Build();
+
+        int exitCode = await Task.Run(() =>
+        {
+            return ProcessExecutor.Run(AppSettings.FfmpegExe, command);
+        });
 
         if (exitCode != 0)
         {
@@ -91,13 +97,10 @@ public class TrackProcessor
 
     private void CleanupTempFiles()
     {
-        // Delete any files starting with "temp." or "out.", regardless of extension.
-        // This is more robust and cleans up intermediate files (e.g., temp.webm)
-        // that yt-dlp might create before conversion.
         IEnumerable<string> tempFiles = Directory.EnumerateFiles(_albumDir, "temp.*")
             .Concat(Directory.EnumerateFiles(_albumDir, "out.*"));
 
-        foreach (var file in tempFiles)
+        foreach (string file in tempFiles)
         {
             try
             {
@@ -105,7 +108,6 @@ public class TrackProcessor
             }
             catch
             {
-                // Ignore errors if the file is locked or doesn't exist.
             }
         }
     }
