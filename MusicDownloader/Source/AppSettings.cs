@@ -4,7 +4,7 @@ public static class AppSettings
 {
     // Paths
     public const string CsvDir = "Data\\Collections";
-    public const string BaseDataDir = "D:\\Parsa Stuff\\Music";
+    public const string BaseDataDir = "D:\\Parsa Stuff\\Audio\\Music";
     public const string CookieFile = "Data\\Cookies.txt";
     public const string PlaylistCheckReportFile = "Data\\PlaylistReport.txt";
 

@@ -8,6 +8,8 @@ public class Track
     public string Url { get; }
     public string Range { get; }
     public string Tempo { get; }
+    public string? TrackNumber { get; }
+    public string? DiscNumber { get; }
 
     public Track(IReadOnlyList<string> fields)
     {
@@ -17,6 +19,8 @@ public class Track
         Url = ProcessUrl(Clean(fields[3]));
         Range = Clean(fields[4]);
         Tempo = Clean(fields[5]);
+        TrackNumber = fields.Count > 6 ? Clean(fields[6]) : null;
+        DiscNumber = fields.Count > 7 ? Clean(fields[7]) : null;
     }
 
     public static string SafeFileName(string name)

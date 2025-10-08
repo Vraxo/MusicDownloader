@@ -5,7 +5,7 @@ public static class AppSettings
 {
     // Paths
     public const string CsvDir = "Data\\Collections";
-    public const string BaseDataDir = "D:\\Parsa Stuff\\Music";
+    public const string BaseDataDir = "D:\\Parsa Stuff\\Audio\\Music";
     public const string CookieFile = "Data\\Cookies.txt";
     public const string PlaylistCheckReportFile = "Data\\PlaylistReport.txt";
 
@@ -24,6 +24,7 @@ public static class AppSettings
 
 <file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\FfmpegCommandBuilder.cs">
 using System.Globalization;
+using System.Text;
 
 namespace MusicDownloader;
 
@@ -79,9 +80,17 @@ public class FfmpegCommandBuilder
 
     private string BuildMetadataArgs()
     {
-        return $"-metadata title=\"{_track.Title}\" " +
-               $"-metadata artist=\"{_track.Artist}\" " +
-               $"-metadata album=\"{_track.Album}\" ";
+        var builder = new StringBuilder();
+        builder.Append($"-metadata title=\"{_track.Title}\" ");
+        builder.Append($"-metadata artist=\"{_track.Artist}\" ");
+        builder.Append($"-metadata album=\"{_track.Album}\" ");
+
+        if (!string.IsNullOrWhiteSpace(_track.TrackNumber))
+        {
+            builder.Append($"-metadata track=\"{_track.TrackNumber}\" ");
+        }
+
+        return builder.ToString();
     }
 
     private string BuildTrimOptions()
@@ -522,45 +531,50 @@ class Program
 
     static async Task ProcessTracksFromCsvAsync()
     {
-        IEnumerable<Track> tracks = GetTracksFromCsv();
-
-        ParallelOptions options = new()
-        {
-            MaxDegreeOfParallelism = 1
-        };
-
-        await Parallel.ForEachAsync(tracks, options, async (track, _) =>
-        {
-            try
-            {
-                TrackProcessor trackProcessor = new(track);
-                await trackProcessor.ProcessAsync();
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"Processing failed for track '{track.Title}': {ex.Message}");
-            }
-        });
-    }
-
-    static IEnumerable<Track> GetTracksFromCsv()
-    {
         if (!Directory.Exists(AppSettings.CsvDir))
         {
             Log.Error($"CSV input directory '{AppSettings.CsvDir}' not found.");
             Environment.Exit(1);
         }
 
-        var csvFiles = Directory.EnumerateFiles(AppSettings.CsvDir, "*.csv").ToList();
+        List<string> csvFiles = Directory.EnumerateFiles(AppSettings.CsvDir, "*.csv").ToList();
 
         if (csvFiles.Count == 0)
         {
             Log.Warning($"No .csv files found in '{AppSettings.CsvDir}'.");
-            return [];
+            return;
         }
 
-        return csvFiles
-            .SelectMany(file => File.ReadAllLines(file).Skip(1))
+        ParallelOptions options = new()
+        {
+            MaxDegreeOfParallelism = 1
+        };
+
+        foreach (string csvFile in csvFiles)
+        {
+            Console.WriteLine();
+            Log.Action($"Processing collection: {Path.GetFileName(csvFile)}");
+
+            IEnumerable<Track> tracks = GetTracksFromSingleCsv(csvFile);
+
+            await Parallel.ForEachAsync(tracks, options, async (track, _) =>
+            {
+                try
+                {
+                    TrackProcessor trackProcessor = new(track);
+                    await trackProcessor.ProcessAsync();
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"Processing failed for track '{track.Title}': {ex.Message}");
+                }
+            });
+        }
+    }
+
+    static IEnumerable<Track> GetTracksFromSingleCsv(string filePath)
+    {
+        return File.ReadAllLines(filePath).Skip(1)
             .Where(line => !string.IsNullOrWhiteSpace(line))
             .Select(line =>
             {
@@ -588,6 +602,7 @@ public class Track
     public string Url { get; }
     public string Range { get; }
     public string Tempo { get; }
+    public string? TrackNumber { get; }
 
     public Track(IReadOnlyList<string> fields)
     {
@@ -597,6 +612,7 @@ public class Track
         Url = ProcessUrl(Clean(fields[3]));
         Range = Clean(fields[4]);
         Tempo = Clean(fields[5]);
+        TrackNumber = fields.Count > 6 ? Clean(fields[6]) : null;
     }
 
     public static string SafeFileName(string name)
@@ -642,10 +658,9 @@ public class TrackProcessor
         Directory.CreateDirectory(_albumDir);
 
         string outputFile = Path.Combine(_albumDir, Track.SafeFileName(_track.Title) + $".{AppSettings.AudioFormat}");
-        
+
         if (File.Exists(outputFile))
         {
-            Log.Info($"Skipping \"{_track.Title}\" — already exists.");
             return;
         }
 
@@ -681,14 +696,17 @@ public class TrackProcessor
     private async Task<bool> DownloadAsync(string tempFilePath)
     {
         Log.Action($"Downloading: {_track.Title}");
-        
+
         string command = new YtDlpCommandBuilder(_track, tempFilePath).Build();
 
-        int exitCode = await Task.Run(() => ProcessExecutor.RunWithFallback(
-            AppSettings.YtDlpExe,
-            AppSettings.FallbackYtDlpExe,
-            command
-        ));
+        int exitCode = await Task.Run(() =>
+        {
+            return ProcessExecutor.RunWithFallback(
+                AppSettings.YtDlpExe,
+                AppSettings.FallbackYtDlpExe,
+                command
+                );
+        });
 
         if (exitCode != 0)
         {
@@ -702,9 +720,13 @@ public class TrackProcessor
     private async Task<bool> ProcessAudioAsync(string inputFile, string outputFile)
     {
         Log.Action($"Processing: {_track.Title}");
-        var command = new FfmpegCommandBuilder(_track, inputFile, outputFile).Build();
 
-        int exitCode = await Task.Run(() => ProcessExecutor.Run(AppSettings.FfmpegExe, command));
+        string command = new FfmpegCommandBuilder(_track, inputFile, outputFile).Build();
+
+        int exitCode = await Task.Run(() =>
+        {
+            return ProcessExecutor.Run(AppSettings.FfmpegExe, command);
+        });
 
         if (exitCode != 0)
         {
@@ -717,13 +739,10 @@ public class TrackProcessor
 
     private void CleanupTempFiles()
     {
-        // Delete any files starting with "temp." or "out.", regardless of extension.
-        // This is more robust and cleans up intermediate files (e.g., temp.webm)
-        // that yt-dlp might create before conversion.
         IEnumerable<string> tempFiles = Directory.EnumerateFiles(_albumDir, "temp.*")
             .Concat(Directory.EnumerateFiles(_albumDir, "out.*"));
 
-        foreach (var file in tempFiles)
+        foreach (string file in tempFiles)
         {
             try
             {
@@ -731,7 +750,6 @@ public class TrackProcessor
             }
             catch
             {
-                // Ignore errors if the file is locked or doesn't exist.
             }
         }
     }

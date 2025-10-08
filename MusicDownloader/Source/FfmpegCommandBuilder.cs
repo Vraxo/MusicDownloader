@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using System.Text;
 
 namespace MusicDownloader;
 
@@ -54,9 +55,22 @@ public class FfmpegCommandBuilder
 
     private string BuildMetadataArgs()
     {
-        return $"-metadata title=\"{_track.Title}\" " +
-               $"-metadata artist=\"{_track.Artist}\" " +
-               $"-metadata album=\"{_track.Album}\" ";
+        var builder = new StringBuilder();
+        builder.Append($"-metadata title=\"{_track.Title}\" ");
+        builder.Append($"-metadata artist=\"{_track.Artist}\" ");
+        builder.Append($"-metadata album=\"{_track.Album}\" ");
+
+        if (!string.IsNullOrWhiteSpace(_track.TrackNumber))
+        {
+            builder.Append($"-metadata track=\"{_track.TrackNumber}\" ");
+        }
+
+        if (!string.IsNullOrWhiteSpace(_track.DiscNumber))
+        {
+            builder.Append($"-metadata disc=\"{_track.DiscNumber}\" ");
+        }
+
+        return builder.ToString();
     }
 
     private string BuildTrimOptions()
