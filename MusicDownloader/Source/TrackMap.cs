@@ -1,5 +1,6 @@
 ﻿using CsvHelper.Configuration;
-using MusicDownloader;
+
+namespace MusicDownloader;
 
 public class TrackMap : ClassMap<Track>
 {
@@ -15,13 +16,11 @@ public class TrackMap : ClassMap<Track>
         Map(m => m.DiscNumber).Name("discnumber").Default(string.Empty);
         Map(m => m.Tags).Name("tags").Convert(args =>
         {
-            // Safely get the 'tags' field. If the column doesn't exist or is empty, return an empty list.
             if (!args.Row.TryGetField<string>("tags", out var tagsCsv) || string.IsNullOrWhiteSpace(tagsCsv))
             {
-                return Array.Empty<string>();
+                return [];
             }
 
-            // If the field exists, split it by comma to create the list.
             return tagsCsv.Split(',')
                 .Select(tag => tag.Trim())
                 .Where(tag => !string.IsNullOrEmpty(tag))

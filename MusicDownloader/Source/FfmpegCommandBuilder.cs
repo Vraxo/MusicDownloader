@@ -55,7 +55,7 @@ public class FfmpegCommandBuilder
 
     private string BuildMetadataArgs()
     {
-        var builder = new StringBuilder();
+        StringBuilder builder = new();
         builder.Append($"-metadata title=\"{_track.Title}\" ");
         builder.Append($"-metadata artist=\"{_track.Artist}\" ");
         builder.Append($"-metadata album=\"{_track.Album}\" ");

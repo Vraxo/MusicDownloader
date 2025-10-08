@@ -11,29 +11,32 @@ public static class CsvTrackReader
         if (!Directory.Exists(AppSettings.CsvDir))
         {
             Log.Error($"CSV input directory '{AppSettings.CsvDir}' not found.");
-            return new List<Track>();
+            return [];
         }
 
         List<string> csvFiles = Directory.EnumerateFiles(AppSettings.CsvDir, "*.csv").ToList();
+        
         if (csvFiles.Count == 0)
         {
             Log.Warning($"No .csv files found in '{AppSettings.CsvDir}'.");
             return new List<Track>();
         }
 
-        List<Track> tracks = new();
+        List<Track> tracks = [];
+
         foreach (string csvFile in csvFiles)
         {
             Console.WriteLine();
             Log.Action($"Reading collection: {Path.GetFileName(csvFile)}");
             tracks.AddRange(GetTracksFromSingleCsv(csvFile));
         }
+
         return tracks;
     }
 
     public static IEnumerable<Track> GetTracksFromSingleCsv(string filePath)
     {
-        var config = new CsvConfiguration(CultureInfo.InvariantCulture)
+        CsvConfiguration config = new(CultureInfo.InvariantCulture)
         {
             Delimiter = "|",
             HasHeaderRecord = true,
@@ -49,28 +52,32 @@ public static class CsvTrackReader
 
         try
         {
-            using var reader = new StreamReader(filePath);
-            using var csv = new CsvReader(reader, config);
+            using StreamReader reader = new(filePath);
+            using CsvReader csv = new(reader, config);
 
             csv.Context.RegisterClassMap<TrackMap>();
 
-            // Process URLs on-the-fly after reading
             var records = csv.GetRecords<Track>().Select(ProcessUrl).ToList();
+
             return records;
         }
         catch (Exception ex)
         {
             Log.Error($"Failed to read or parse CSV file '{filePath}': {ex.Message}");
-            return Enumerable.Empty<Track>();
+            return [];
         }
     }
 
     private static Track ProcessUrl(Track track)
     {
-        if (!string.IsNullOrWhiteSpace(track.Url) && !track.Url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(track.Url) || track.Url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
         {
-            return track with { Url = $"https://www.youtube.com/watch?v={track.Url.Trim()}" };
+            return track;
         }
-        return track;
+
+        return track with 
+        { 
+            Url = $"https://www.youtube.com/watch?v={track.Url.Trim()}" 
+        };
     }
 }

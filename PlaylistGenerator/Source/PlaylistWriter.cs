@@ -8,13 +8,13 @@ public static class PlaylistWriter
     public static void GeneratePlaylists()
     {
         List<Track> allTracks = CsvTrackReader.ReadAllTracks();
+        
         if (allTracks.Count == 0)
         {
             Log.Info("No tracks found to process.");
             return;
         }
 
-        // Add a line to separate the reading phase from the summary/generation phase.
         Console.WriteLine();
 
         Dictionary<string, List<Track>> tracksByTag = GroupTracksByTag(allTracks);
@@ -35,7 +35,7 @@ public static class PlaylistWriter
 
     private static Dictionary<string, List<Track>> GroupTracksByTag(IEnumerable<Track> tracks)
     {
-        var map = new Dictionary<string, List<Track>>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, List<Track>> map = new(StringComparer.OrdinalIgnoreCase);
 
         foreach (Track track in tracks)
         {
@@ -46,9 +46,11 @@ public static class PlaylistWriter
                     trackList = new List<Track>();
                     map[tag] = trackList;
                 }
+
                 trackList.Add(track);
             }
         }
+
         return map;
     }
 
@@ -56,16 +58,17 @@ public static class PlaylistWriter
     {
         Log.Action($"Generating playlist for tag: '{tag}'...");
 
-        List<Track> sortedTracks = tracks
+        List<Track> sortedTracks = [.. tracks
             .OrderBy(t => int.TryParse(t.TrackNumber, out int num) ? num : int.MaxValue)
-            .ThenBy(t => t.Title, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+            .ThenBy(t => t.Title, StringComparer.OrdinalIgnoreCase)];
 
         StringBuilder contentBuilder = new();
+
         for (int i = 0; i < sortedTracks.Count; i++)
         {
             Track track = sortedTracks[i];
             string relativePath = Path.Combine(Track.SafeFileName(track.Album), $"{Track.SafeFileName(track.Title)}.{AppSettings.AudioFormat}");
+            
             contentBuilder.AppendLine(relativePath);
 
             if ((i + 1) % 5 == 0 && (i + 1) < sortedTracks.Count)
