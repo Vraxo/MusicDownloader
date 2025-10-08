@@ -23,17 +23,9 @@ class Program
 
     static async Task ProcessTracksFromCsvAsync()
     {
-        if (!Directory.Exists(AppSettings.CsvDir))
+        List<Track> allTracks = CsvTrackReader.ReadAllTracks();
+        if (allTracks.Count == 0)
         {
-            Log.Error($"CSV input directory '{AppSettings.CsvDir}' not found.");
-            Environment.Exit(1);
-        }
-
-        List<string> csvFiles = Directory.EnumerateFiles(AppSettings.CsvDir, "*.csv").ToList();
-
-        if (csvFiles.Count == 0)
-        {
-            Log.Warning($"No .csv files found in '{AppSettings.CsvDir}'.");
             return;
         }
 
@@ -42,42 +34,17 @@ class Program
             MaxDegreeOfParallelism = 1
         };
 
-        foreach (string csvFile in csvFiles)
+        await Parallel.ForEachAsync(allTracks, options, async (track, _) =>
         {
-            Console.WriteLine();
-            Log.Action($"Processing collection: {Path.GetFileName(csvFile)}");
-
-            IEnumerable<Track> tracks = GetTracksFromSingleCsv(csvFile);
-
-            await Parallel.ForEachAsync(tracks, options, async (track, _) =>
+            try
             {
-                try
-                {
-                    TrackProcessor trackProcessor = new(track);
-                    await trackProcessor.ProcessAsync();
-                }
-                catch (Exception ex)
-                {
-                    Log.Error($"Processing failed for track '{track.Title}': {ex.Message}");
-                }
-            });
-        }
-    }
-
-    static IEnumerable<Track> GetTracksFromSingleCsv(string filePath)
-    {
-        return File.ReadAllLines(filePath).Skip(1)
-            .Where(line => !string.IsNullOrWhiteSpace(line))
-            .Select(line =>
+                TrackProcessor trackProcessor = new(track);
+                await trackProcessor.ProcessAsync();
+            }
+            catch (Exception ex)
             {
-                string[] fields = line.Split('|');
-                if (fields.Length < 6)
-                {
-                    Log.Warning("Skipping invalid line: not enough fields.");
-                    return null;
-                }
-                return new Track(fields);
-            })
-            .Where(track => track is not null)!; // Filter out nulls from invalid lines
+                Log.Error($"Processing failed for track '{track.Title}': {ex.Message}");
+            }
+        });
     }
 }

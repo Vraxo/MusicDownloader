@@ -90,6 +90,11 @@ public class FfmpegCommandBuilder
             builder.Append($"-metadata track=\"{_track.TrackNumber}\" ");
         }
 
+        if (!string.IsNullOrWhiteSpace(_track.DiscNumber))
+        {
+            builder.Append($"-metadata disc=\"{_track.DiscNumber}\" ");
+        }
+
         return builder.ToString();
     }
 
@@ -603,6 +608,7 @@ public class Track
     public string Range { get; }
     public string Tempo { get; }
     public string? TrackNumber { get; }
+    public string? DiscNumber { get; }
 
     public Track(IReadOnlyList<string> fields)
     {
@@ -613,6 +619,7 @@ public class Track
         Range = Clean(fields[4]);
         Tempo = Clean(fields[5]);
         TrackNumber = fields.Count > 6 ? Clean(fields[6]) : null;
+        DiscNumber = fields.Count > 7 ? Clean(fields[7]) : null;
     }
 
     public static string SafeFileName(string name)

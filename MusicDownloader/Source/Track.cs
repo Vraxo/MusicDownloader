@@ -1,47 +1,37 @@
 ﻿namespace MusicDownloader;
 
-public class Track
+public record Track
 {
-    public string Title { get; }
-    public string Artist { get; }
-    public string Album { get; }
-    public string Url { get; }
-    public string Range { get; }
-    public string Tempo { get; }
-    public string? TrackNumber { get; }
-    public string? DiscNumber { get; }
+    public string Title { get; init; }
+    public string Artist { get; init; }
+    public string Album { get; init; }
+    public string Url { get; init; }
+    public string Range { get; init; }
+    public string Tempo { get; init; }
+    public string? TrackNumber { get; init; }
+    public string? DiscNumber { get; init; }
+    public IReadOnlyList<string> Tags { get; init; }
 
-    public Track(IReadOnlyList<string> fields)
+    public Track()
     {
-        Title = Clean(fields[0]);
-        Artist = Clean(fields[1]);
-        Album = Clean(fields[2]);
-        Url = ProcessUrl(Clean(fields[3]));
-        Range = Clean(fields[4]);
-        Tempo = Clean(fields[5]);
-        TrackNumber = fields.Count > 6 ? Clean(fields[6]) : null;
-        DiscNumber = fields.Count > 7 ? Clean(fields[7]) : null;
+        Title = string.Empty;
+        Artist = string.Empty;
+        Album = string.Empty;
+        Url = string.Empty;
+        Range = string.Empty;
+        Tempo = string.Empty;
+        Tags = Array.Empty<string>();
     }
 
     public static string SafeFileName(string name)
     {
+        // The ProcessUrl logic is now part of the mapping and no longer needed here,
+        // but SafeFileName is still a useful utility.
         foreach (char c in Path.GetInvalidFileNameChars())
         {
             name = name.Replace(c, '_');
         }
 
         return name;
-    }
-
-    private static string ProcessUrl(string urlOrId)
-    {
-        return !string.IsNullOrWhiteSpace(urlOrId) && !urlOrId.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-            ? $"https://www.youtube.com/watch?v={urlOrId}"
-            : urlOrId;
-    }
-
-    private static string Clean(string s)
-    {
-        return s.Trim();
     }
 }
