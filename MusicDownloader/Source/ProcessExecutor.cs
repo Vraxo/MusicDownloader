@@ -40,8 +40,7 @@ public class ProcessExecutor
         catch (Exception ex)
         {
             Log.Error($"Unexpected error running '{exe}': {ex.Message}");
-            Environment.Exit(1);
-            return -1;
+            throw; // Re-throw to allow caller to handle the exception.
         }
     }
 
@@ -62,8 +61,7 @@ public class ProcessExecutor
             catch (Win32Exception)
             {
                 Log.Error($"Neither '{exe}' nor '{fallbackExe}' were found.");
-                Environment.Exit(1);
-                return -1;
+                throw; // Re-throw to indicate both executables are missing.
             }
         }
     }
