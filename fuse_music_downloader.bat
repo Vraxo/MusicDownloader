@@ -7,7 +7,7 @@ echo Scanning folders:
 echo   - D:\Parsa Stuff\Visual Studio\Cosmocrush\Cosmocrush
 echo ==================================================
 
-Fuse.exe "D:\Parsa Stuff\Visual Studio\MusicDownloader\MergedCodeForAI.txt" "D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source"
+Fuse.exe "D:\Parsa Stuff\Visual Studio\MusicDownloader\MergedCodeForAI.txt" "D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source" "D:\Parsa Stuff\Visual Studio\MusicDownloader\PlaylistGenerator\Source"
 
 echo ==================================================
 echo Fuse process finished. Press any key to close this window.

@@ -4,7 +4,7 @@ namespace MusicDownloader;
 public static class AppSettings
 {
     // Paths
-    public const string CsvDir = "Data\\Collections";
+    public const string CsvDir = "D:\\Parsa Stuff\\Documents\\Music Collections";
     public const string BaseDataDir = "D:\\Parsa Stuff\\Audio\\Music";
     public const string CookieFile = "Data\\Cookies.txt";
     public const string PlaylistCheckReportFile = "Data\\PlaylistReport.txt";
@@ -19,6 +19,92 @@ public static class AppSettings
     public const int AudioBitrateKbps = 320;
 
     public const bool PreservePitchWhenChangingTempo = false;
+}
+</file>
+
+<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\CsvTrackReader.cs">
+using System.Globalization;
+using CsvHelper;
+using CsvHelper.Configuration;
+
+namespace MusicDownloader;
+
+public static class CsvTrackReader
+{
+    public static List<Track> ReadAllTracks()
+    {
+        if (!Directory.Exists(AppSettings.CsvDir))
+        {
+            Log.Error($"CSV input directory '{AppSettings.CsvDir}' not found.");
+            return [];
+        }
+
+        List<string> csvFiles = Directory.EnumerateFiles(AppSettings.CsvDir, "*.csv").ToList();
+        
+        if (csvFiles.Count == 0)
+        {
+            Log.Warning($"No .csv files found in '{AppSettings.CsvDir}'.");
+            return new List<Track>();
+        }
+
+        List<Track> tracks = [];
+
+        foreach (string csvFile in csvFiles)
+        {
+            Console.WriteLine();
+            Log.Action($"Reading collection: {Path.GetFileName(csvFile)}");
+            tracks.AddRange(GetTracksFromSingleCsv(csvFile));
+        }
+
+        return tracks;
+    }
+
+    public static IEnumerable<Track> GetTracksFromSingleCsv(string filePath)
+    {
+        CsvConfiguration config = new(CultureInfo.InvariantCulture)
+        {
+            Delimiter = "|",
+            HasHeaderRecord = true,
+            TrimOptions = TrimOptions.Trim,
+            MissingFieldFound = null, // Suppress errors for optional fields
+            HeaderValidated = null, // Don't throw an exception if headers are missing.
+            PrepareHeaderForMatch = args => args.Header.ToLowerInvariant(), // Match headers case-insensitively.
+            BadDataFound = context =>
+            {
+                Log.Warning($"Skipping bad CSV line in {Path.GetFileName(filePath)} at row {context.RawRecord.Length}: {context.RawRecord}");
+            }
+        };
+
+        try
+        {
+            using StreamReader reader = new(filePath);
+            using CsvReader csv = new(reader, config);
+
+            csv.Context.RegisterClassMap<TrackMap>();
+
+            var records = csv.GetRecords<Track>().Select(ProcessUrl).ToList();
+
+            return records;
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to read or parse CSV file '{filePath}': {ex.Message}");
+            return [];
+        }
+    }
+
+    private static Track ProcessUrl(Track track)
+    {
+        if (string.IsNullOrWhiteSpace(track.Url) || track.Url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            return track;
+        }
+
+        return track with 
+        { 
+            Url = $"https://www.youtube.com/watch?v={track.Url.Trim()}" 
+        };
+    }
 }
 </file>
 
@@ -80,7 +166,7 @@ public class FfmpegCommandBuilder
 
     private string BuildMetadataArgs()
     {
-        var builder = new StringBuilder();
+        StringBuilder builder = new();
         builder.Append($"-metadata title=\"{_track.Title}\" ");
         builder.Append($"-metadata artist=\"{_track.Artist}\" ");
         builder.Append($"-metadata album=\"{_track.Album}\" ");
@@ -536,17 +622,9 @@ class Program
 
     static async Task ProcessTracksFromCsvAsync()
     {
-        if (!Directory.Exists(AppSettings.CsvDir))
+        List<Track> allTracks = CsvTrackReader.ReadAllTracks();
+        if (allTracks.Count == 0)
         {
-            Log.Error($"CSV input directory '{AppSettings.CsvDir}' not found.");
-            Environment.Exit(1);
-        }
-
-        List<string> csvFiles = Directory.EnumerateFiles(AppSettings.CsvDir, "*.csv").ToList();
-
-        if (csvFiles.Count == 0)
-        {
-            Log.Warning($"No .csv files found in '{AppSettings.CsvDir}'.");
             return;
         }
 
@@ -555,43 +633,18 @@ class Program
             MaxDegreeOfParallelism = 1
         };
 
-        foreach (string csvFile in csvFiles)
+        await Parallel.ForEachAsync(allTracks, options, async (track, _) =>
         {
-            Console.WriteLine();
-            Log.Action($"Processing collection: {Path.GetFileName(csvFile)}");
-
-            IEnumerable<Track> tracks = GetTracksFromSingleCsv(csvFile);
-
-            await Parallel.ForEachAsync(tracks, options, async (track, _) =>
+            try
             {
-                try
-                {
-                    TrackProcessor trackProcessor = new(track);
-                    await trackProcessor.ProcessAsync();
-                }
-                catch (Exception ex)
-                {
-                    Log.Error($"Processing failed for track '{track.Title}': {ex.Message}");
-                }
-            });
-        }
-    }
-
-    static IEnumerable<Track> GetTracksFromSingleCsv(string filePath)
-    {
-        return File.ReadAllLines(filePath).Skip(1)
-            .Where(line => !string.IsNullOrWhiteSpace(line))
-            .Select(line =>
+                TrackProcessor trackProcessor = new(track);
+                await trackProcessor.ProcessAsync();
+            }
+            catch (Exception ex)
             {
-                string[] fields = line.Split('|');
-                if (fields.Length < 6)
-                {
-                    Log.Warning("Skipping invalid line: not enough fields.");
-                    return null;
-                }
-                return new Track(fields);
-            })
-            .Where(track => track is not null)!; // Filter out nulls from invalid lines
+                Log.Error($"Processing failed for track '{track.Title}': {ex.Message}");
+            }
+        });
     }
 }
 </file>
@@ -599,31 +652,33 @@ class Program
 <file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\Track.cs">
 namespace MusicDownloader;
 
-public class Track
+public record Track
 {
-    public string Title { get; }
-    public string Artist { get; }
-    public string Album { get; }
-    public string Url { get; }
-    public string Range { get; }
-    public string Tempo { get; }
-    public string? TrackNumber { get; }
-    public string? DiscNumber { get; }
+    public string Title { get; init; }
+    public string Artist { get; init; }
+    public string Album { get; init; }
+    public string Url { get; init; }
+    public string Range { get; init; }
+    public string Tempo { get; init; }
+    public string? TrackNumber { get; init; }
+    public string? DiscNumber { get; init; }
+    public IReadOnlyList<string> Tags { get; init; }
 
-    public Track(IReadOnlyList<string> fields)
+    public Track()
     {
-        Title = Clean(fields[0]);
-        Artist = Clean(fields[1]);
-        Album = Clean(fields[2]);
-        Url = ProcessUrl(Clean(fields[3]));
-        Range = Clean(fields[4]);
-        Tempo = Clean(fields[5]);
-        TrackNumber = fields.Count > 6 ? Clean(fields[6]) : null;
-        DiscNumber = fields.Count > 7 ? Clean(fields[7]) : null;
+        Title = string.Empty;
+        Artist = string.Empty;
+        Album = string.Empty;
+        Url = string.Empty;
+        Range = string.Empty;
+        Tempo = string.Empty;
+        Tags = Array.Empty<string>();
     }
 
     public static string SafeFileName(string name)
     {
+        // The ProcessUrl logic is now part of the mapping and no longer needed here,
+        // but SafeFileName is still a useful utility.
         foreach (char c in Path.GetInvalidFileNameChars())
         {
             name = name.Replace(c, '_');
@@ -631,17 +686,38 @@ public class Track
 
         return name;
     }
+}
+</file>
 
-    private static string ProcessUrl(string urlOrId)
-    {
-        return !string.IsNullOrWhiteSpace(urlOrId) && !urlOrId.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-            ? $"https://www.youtube.com/watch?v={urlOrId}"
-            : urlOrId;
-    }
+<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\TrackMap.cs">
+using CsvHelper.Configuration;
 
-    private static string Clean(string s)
+namespace MusicDownloader;
+
+public class TrackMap : ClassMap<Track>
+{
+    public TrackMap()
     {
-        return s.Trim();
+        Map(m => m.Title).Name("title");
+        Map(m => m.Artist).Name("artist");
+        Map(m => m.Album).Name("album");
+        Map(m => m.Url).Name("url");
+        Map(m => m.Range).Name("range").Default(string.Empty);
+        Map(m => m.Tempo).Name("tempo").Default(string.Empty);
+        Map(m => m.TrackNumber).Name("tracknumber").Default(string.Empty);
+        Map(m => m.DiscNumber).Name("discnumber").Default(string.Empty);
+        Map(m => m.Tags).Name("tags").Convert(args =>
+        {
+            if (!args.Row.TryGetField<string>("tags", out var tagsCsv) || string.IsNullOrWhiteSpace(tagsCsv))
+            {
+                return [];
+            }
+
+            return tagsCsv.Split(',')
+                .Select(tag => tag.Trim())
+                .Where(tag => !string.IsNullOrEmpty(tag))
+                .ToList();
+        });
     }
 }
 </file>
@@ -800,6 +876,129 @@ public class YtDlpCommandBuilder
                "--no-add-metadata " +
                $"--no-mtime {cookieArg}" +
                $"-o \"{_tempFilePath}\"";
+    }
+}
+</file>
+
+<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\PlaylistGenerator\Source\PlaylistWriter.cs">
+using System.Text;
+using MusicDownloader;
+
+namespace PlaylistGenerator;
+
+public static class PlaylistWriter
+{
+    public static void GeneratePlaylists()
+    {
+        List<Track> allTracks = CsvTrackReader.ReadAllTracks();
+        
+        if (allTracks.Count == 0)
+        {
+            Log.Info("No tracks found to process.");
+            return;
+        }
+
+        Console.WriteLine();
+
+        Dictionary<string, List<Track>> tracksByTag = GroupTracksByTag(allTracks);
+        if (tracksByTag.Count == 0)
+        {
+            Log.Info("No tags found on any tracks. No playlists will be generated.");
+            return;
+        }
+
+        Log.Info($"Found {allTracks.Count} tracks with {tracksByTag.Count} unique tags.");
+        Console.WriteLine();
+
+        foreach ((string tag, List<Track> tracks) in tracksByTag)
+        {
+            GenerateSinglePlaylist(tag, tracks);
+        }
+    }
+
+    private static Dictionary<string, List<Track>> GroupTracksByTag(IEnumerable<Track> tracks)
+    {
+        Dictionary<string, List<Track>> map = new(StringComparer.OrdinalIgnoreCase);
+
+        foreach (Track track in tracks)
+        {
+            foreach (string tag in track.Tags)
+            {
+                if (!map.TryGetValue(tag, out List<Track>? trackList))
+                {
+                    trackList = new List<Track>();
+                    map[tag] = trackList;
+                }
+
+                trackList.Add(track);
+            }
+        }
+
+        return map;
+    }
+
+    private static void GenerateSinglePlaylist(string tag, IReadOnlyList<Track> tracks)
+    {
+        Log.Action($"Generating playlist for tag: '{tag}'...");
+
+        List<Track> sortedTracks = [.. tracks
+            .OrderBy(t => int.TryParse(t.TrackNumber, out int num) ? num : int.MaxValue)
+            .ThenBy(t => t.Title, StringComparer.OrdinalIgnoreCase)];
+
+        StringBuilder contentBuilder = new();
+
+        for (int i = 0; i < sortedTracks.Count; i++)
+        {
+            Track track = sortedTracks[i];
+            string relativePath = Path.Combine(Track.SafeFileName(track.Album), $"{Track.SafeFileName(track.Title)}.{AppSettings.AudioFormat}");
+            
+            contentBuilder.AppendLine(relativePath);
+
+            if ((i + 1) % 5 == 0 && (i + 1) < sortedTracks.Count)
+            {
+                contentBuilder.AppendLine();
+            }
+        }
+
+        try
+        {
+            string safeTagFileName = Track.SafeFileName(tag);
+            string playlistPath = Path.Combine(AppSettings.BaseDataDir, $"{safeTagFileName}.m3u");
+            Directory.CreateDirectory(AppSettings.BaseDataDir);
+            File.WriteAllText(playlistPath, contentBuilder.ToString());
+            Log.Success($"Successfully created playlist: {Path.GetFileName(playlistPath)} with {tracks.Count} songs.");
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to write playlist for tag '{tag}': {ex.Message}");
+        }
+    }
+}
+</file>
+
+<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\PlaylistGenerator\Source\Program.cs">
+using MusicDownloader;
+
+namespace PlaylistGenerator;
+
+class Program
+{
+    static void Main()
+    {
+        try
+        {
+            Log.Info("Starting playlist generation...");
+            PlaylistWriter.GeneratePlaylists();
+            Log.Success("All playlists generated successfully.");
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"A fatal error occurred: {ex.Message}");
+        }
+
+        Console.WriteLine();
+        Log.Info("Press any key to exit...");
+        Console.ReadKey();
     }
 }
 </file>
