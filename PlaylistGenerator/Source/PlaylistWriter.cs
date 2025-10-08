@@ -8,7 +8,7 @@ public static class PlaylistWriter
     public static void GeneratePlaylists()
     {
         List<Track> allTracks = CsvTrackReader.ReadAllTracks();
-        
+
         if (allTracks.Count == 0)
         {
             Log.Info("No tracks found to process.");
@@ -67,8 +67,8 @@ public static class PlaylistWriter
         for (int i = 0; i < sortedTracks.Count; i++)
         {
             Track track = sortedTracks[i];
-            string relativePath = Path.Combine(Track.SafeFileName(track.Album), $"{Track.SafeFileName(track.Title)}.{AppSettings.AudioFormat}");
-            
+            string relativePath = Path.Combine(PathUtils.SafeFileName(track.Album), $"{PathUtils.SafeFileName(track.Title)}.{AppSettings.AudioFormat}");
+
             contentBuilder.AppendLine(relativePath);
 
             if ((i + 1) % 5 == 0 && (i + 1) < sortedTracks.Count)
@@ -79,7 +79,7 @@ public static class PlaylistWriter
 
         try
         {
-            string safeTagFileName = Track.SafeFileName(tag);
+            string safeTagFileName = PathUtils.SafeFileName(tag);
             string playlistPath = Path.Combine(AppSettings.BaseDataDir, $"{safeTagFileName}.m3u");
             Directory.CreateDirectory(AppSettings.BaseDataDir);
             File.WriteAllText(playlistPath, contentBuilder.ToString());

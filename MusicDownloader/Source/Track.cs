@@ -22,16 +22,4 @@ public record Track
         Tempo = string.Empty;
         Tags = Array.Empty<string>();
     }
-
-    public static string SafeFileName(string name)
-    {
-        // The ProcessUrl logic is now part of the mapping and no longer needed here,
-        // but SafeFileName is still a useful utility.
-        foreach (char c in Path.GetInvalidFileNameChars())
-        {
-            name = name.Replace(c, '_');
-        }
-
-        return name;
-    }
 }

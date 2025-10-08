@@ -29,12 +29,7 @@ class Program
             return;
         }
 
-        ParallelOptions options = new()
-        {
-            MaxDegreeOfParallelism = 1
-        };
-
-        await Parallel.ForEachAsync(allTracks, options, async (track, _) =>
+        foreach (var track in allTracks)
         {
             try
             {
@@ -45,6 +40,6 @@ class Program
             {
                 Log.Error($"Processing failed for track '{track.Title}': {ex.Message}");
             }
-        });
+        }
     }
 }

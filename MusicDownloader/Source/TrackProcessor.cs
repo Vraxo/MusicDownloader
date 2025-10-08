@@ -8,14 +8,14 @@ public class TrackProcessor
     public TrackProcessor(Track track)
     {
         _track = track;
-        _albumDir = Path.Combine(AppSettings.BaseDataDir, Track.SafeFileName(_track.Album));
+        _albumDir = Path.Combine(AppSettings.BaseDataDir, PathUtils.SafeFileName(_track.Album));
     }
 
     public async Task ProcessAsync()
     {
         Directory.CreateDirectory(_albumDir);
 
-        string outputFile = Path.Combine(_albumDir, Track.SafeFileName(_track.Title) + $".{AppSettings.AudioFormat}");
+        string outputFile = Path.Combine(_albumDir, PathUtils.SafeFileName(_track.Title) + $".{AppSettings.AudioFormat}");
 
         if (File.Exists(outputFile))
         {
