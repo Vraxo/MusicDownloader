@@ -1,4 +1,6 @@
-﻿namespace MusicDownloader;
+﻿using System.ComponentModel;
+
+namespace MusicDownloader;
 
 public class TrackProcessor
 {
@@ -57,18 +59,23 @@ public class TrackProcessor
 
         string command = new YtDlpCommandBuilder(_track, tempFilePath).Build();
 
-        int exitCode = await Task.Run(() =>
-        {
-            return ProcessExecutor.RunWithFallback(
-                AppSettings.YtDlpExe,
-                AppSettings.FallbackYtDlpExe,
-                command
-                );
-        });
+        string ytDlpPath = !string.IsNullOrWhiteSpace(AppSettings.YtDlpDir)
+            ? Path.Combine(AppSettings.YtDlpDir, AppSettings.YtDlpExe)
+            : AppSettings.YtDlpExe;
 
-        if (exitCode != 0)
+        try
         {
-            Log.Error($"yt-dlp failed for {_track.Title}, skipping...");
+            int exitCode = await Task.Run(() => ProcessExecutor.Run(ytDlpPath, command));
+
+            if (exitCode != 0)
+            {
+                Log.Error($"yt-dlp failed for {_track.Title}, skipping...");
+                return false;
+            }
+        }
+        catch (Win32Exception)
+        {
+            Log.Error($"Could not find '{ytDlpPath}'. Make sure yt-dlp is in your PATH or the YtDlpDir is set correctly in AppSettings.");
             return false;
         }
 
@@ -85,14 +92,19 @@ public class TrackProcessor
             ? Path.Combine(AppSettings.FfmpegDir, AppSettings.FfmpegExe)
             : AppSettings.FfmpegExe;
 
-        int exitCode = await Task.Run(() =>
+        try
         {
-            return ProcessExecutor.Run(ffmpegPath, command);
-        });
+            int exitCode = await Task.Run(() => ProcessExecutor.Run(ffmpegPath, command));
 
-        if (exitCode != 0)
+            if (exitCode != 0)
+            {
+                Log.Error($"ffmpeg processing failed for {_track.Title}, skipping...");
+                return false;
+            }
+        }
+        catch (Win32Exception)
         {
-            Log.Error($"ffmpeg processing failed for {_track.Title}, skipping...");
+            Log.Error($"Could not find '{ffmpegPath}'. Make sure ffmpeg is in your PATH or the FfmpegDir is set correctly in AppSettings.");
             return false;
         }
 

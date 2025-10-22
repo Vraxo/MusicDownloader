@@ -43,26 +43,4 @@ public class ProcessExecutor
             throw; // Re-throw to allow caller to handle the exception.
         }
     }
-
-    public static int RunWithFallback(string exe, string fallbackExe, string args)
-    {
-        try
-        {
-            return Run(exe, args);
-        }
-        catch (Win32Exception)
-        {
-            Log.Warning($"'{exe}' not found, trying '{fallbackExe}'...");
-
-            try
-            {
-                return Run(fallbackExe, args);
-            }
-            catch (Win32Exception)
-            {
-                Log.Error($"Neither '{exe}' nor '{fallbackExe}' were found.");
-                throw; // Re-throw to indicate both executables are missing.
-            }
-        }
-    }
 }
