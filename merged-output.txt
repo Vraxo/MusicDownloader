@@ -1,18 +1,18 @@
-<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\AppSettings.cs">
+<file path="E:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\AppSettings.cs">
 namespace MusicDownloader;
 
 public static class AppSettings
 {
     // Paths
-    public const string CsvDir = "D:\\Parsa Stuff\\Documents\\Music Collections";
-    public const string BaseDataDir = "D:\\Parsa Stuff\\Audio\\Music";
+    public const string CsvDir = "E:\\Parsa Stuff\\Documents\\Music Collections";
+    public const string BaseDataDir = "E:\\Parsa Stuff\\Audio\\Music";
     public const string CookieFile = "Data\\Cookies.txt";
     public const string PlaylistCheckReportFile = "Data\\PlaylistReport.txt";
 
     // Executables
     public const string YtDlpExe = "yt-dlp";
     public const string FfmpegExe = "ffmpeg";
-    public const string FallbackYtDlpExe = @"D:\Program Files\yt-dlp\yt-dlp.exe";
+    public const string FallbackYtDlpExe = @"C:\Program Files\yt-dlp\yt-dlp.exe";
 
     // Audio Settings
     public const string AudioFormat = "m4a";
@@ -22,7 +22,7 @@ public static class AppSettings
 }
 </file>
 
-<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\CsvTrackReader.cs">
+<file path="E:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\CsvTrackReader.cs">
 using System.Globalization;
 using CsvHelper;
 using CsvHelper.Configuration;
@@ -108,7 +108,7 @@ public static class CsvTrackReader
 }
 </file>
 
-<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\FfmpegCommandBuilder.cs">
+<file path="E:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\FfmpegCommandBuilder.cs">
 using System.Globalization;
 using System.Text;
 
@@ -230,7 +230,7 @@ public class FfmpegCommandBuilder
 }
 </file>
 
-<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\Log.cs">
+<file path="E:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\Log.cs">
 namespace MusicDownloader;
 
 public class Log
@@ -275,7 +275,7 @@ public class Log
 }
 </file>
 
-<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\PathUtils.cs">
+<file path="E:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\PathUtils.cs">
 namespace MusicDownloader;
 
 public static class PathUtils
@@ -292,7 +292,7 @@ public static class PathUtils
 }
 </file>
 
-<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\ProcessExecutor.cs">
+<file path="E:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\ProcessExecutor.cs">
 using System.ComponentModel;
 using System.Diagnostics;
 
@@ -335,8 +335,7 @@ public class ProcessExecutor
         catch (Exception ex)
         {
             Log.Error($"Unexpected error running '{exe}': {ex.Message}");
-            Environment.Exit(1);
-            return -1;
+            throw; // Re-throw to allow caller to handle the exception.
         }
     }
 
@@ -357,15 +356,14 @@ public class ProcessExecutor
             catch (Win32Exception)
             {
                 Log.Error($"Neither '{exe}' nor '{fallbackExe}' were found.");
-                Environment.Exit(1);
-                return -1;
+                throw; // Re-throw to indicate both executables are missing.
             }
         }
     }
 }
 </file>
 
-<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\Program.cs">
+<file path="E:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\Program.cs">
 namespace MusicDownloader;
 
 class Program
@@ -413,35 +411,24 @@ class Program
 }
 </file>
 
-<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\Track.cs">
+<file path="E:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\Track.cs">
 namespace MusicDownloader;
 
 public record Track
 {
-    public string Title { get; init; }
-    public string Artist { get; init; }
-    public string Album { get; init; }
-    public string Url { get; init; }
-    public string Range { get; init; }
-    public string Tempo { get; init; }
-    public string? TrackNumber { get; init; }
-    public string? DiscNumber { get; init; }
-    public IReadOnlyList<string> Tags { get; init; }
-
-    public Track()
-    {
-        Title = string.Empty;
-        Artist = string.Empty;
-        Album = string.Empty;
-        Url = string.Empty;
-        Range = string.Empty;
-        Tempo = string.Empty;
-        Tags = Array.Empty<string>();
-    }
+    public string Title { get; init; } = string.Empty;
+    public string Artist { get; init; } = string.Empty;
+    public string Album { get; init; } = string.Empty;
+    public string Url { get; init; } = string.Empty;
+    public string Range { get; init; } = string.Empty;
+    public string Tempo { get; init; } = string.Empty;
+    public string? TrackNumber { get; init; } = string.Empty;
+    public string? DiscNumber { get; init; } = string.Empty;
+    public IReadOnlyList<string> Tags { get; init; } = [];
 }
 </file>
 
-<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\TrackMap.cs">
+<file path="E:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\TrackMap.cs">
 using CsvHelper.Configuration;
 
 namespace MusicDownloader;
@@ -474,7 +461,7 @@ public class TrackMap : ClassMap<Track>
 }
 </file>
 
-<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\TrackProcessor.cs">
+<file path="E:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\TrackProcessor.cs">
 namespace MusicDownloader;
 
 public class TrackProcessor
@@ -591,7 +578,7 @@ public class TrackProcessor
 }
 </file>
 
-<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\YtDlpCommandBuilder.cs">
+<file path="E:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\YtDlpCommandBuilder.cs">
 namespace MusicDownloader;
 
 public class YtDlpCommandBuilder
@@ -628,129 +615,6 @@ public class YtDlpCommandBuilder
                "--no-add-metadata " +
                $"--no-mtime {cookieArg}" +
                $"-o \"{_tempFilePath}\"";
-    }
-}
-</file>
-
-<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\PlaylistGenerator\Source\PlaylistWriter.cs">
-using System.Text;
-using MusicDownloader;
-
-namespace PlaylistGenerator;
-
-public static class PlaylistWriter
-{
-    public static void GeneratePlaylists()
-    {
-        List<Track> allTracks = CsvTrackReader.ReadAllTracks();
-
-        if (allTracks.Count == 0)
-        {
-            Log.Info("No tracks found to process.");
-            return;
-        }
-
-        Console.WriteLine();
-
-        Dictionary<string, List<Track>> tracksByTag = GroupTracksByTag(allTracks);
-        if (tracksByTag.Count == 0)
-        {
-            Log.Info("No tags found on any tracks. No playlists will be generated.");
-            return;
-        }
-
-        Log.Info($"Found {allTracks.Count} tracks with {tracksByTag.Count} unique tags.");
-        Console.WriteLine();
-
-        foreach ((string tag, List<Track> tracks) in tracksByTag)
-        {
-            GenerateSinglePlaylist(tag, tracks);
-        }
-    }
-
-    private static Dictionary<string, List<Track>> GroupTracksByTag(IEnumerable<Track> tracks)
-    {
-        Dictionary<string, List<Track>> map = new(StringComparer.OrdinalIgnoreCase);
-
-        foreach (Track track in tracks)
-        {
-            foreach (string tag in track.Tags)
-            {
-                if (!map.TryGetValue(tag, out List<Track>? trackList))
-                {
-                    trackList = new List<Track>();
-                    map[tag] = trackList;
-                }
-
-                trackList.Add(track);
-            }
-        }
-
-        return map;
-    }
-
-    private static void GenerateSinglePlaylist(string tag, IReadOnlyList<Track> tracks)
-    {
-        Log.Action($"Generating playlist for tag: '{tag}'...");
-
-        List<Track> sortedTracks = [.. tracks
-            .OrderBy(t => int.TryParse(t.TrackNumber, out int num) ? num : int.MaxValue)
-            .ThenBy(t => t.Title, StringComparer.OrdinalIgnoreCase)];
-
-        StringBuilder contentBuilder = new();
-
-        for (int i = 0; i < sortedTracks.Count; i++)
-        {
-            Track track = sortedTracks[i];
-            string relativePath = Path.Combine(PathUtils.SafeFileName(track.Album), $"{PathUtils.SafeFileName(track.Title)}.{AppSettings.AudioFormat}");
-
-            contentBuilder.AppendLine(relativePath);
-
-            if ((i + 1) % 5 == 0 && (i + 1) < sortedTracks.Count)
-            {
-                contentBuilder.AppendLine();
-            }
-        }
-
-        try
-        {
-            string safeTagFileName = PathUtils.SafeFileName(tag);
-            string playlistPath = Path.Combine(AppSettings.BaseDataDir, $"{safeTagFileName}.m3u");
-            Directory.CreateDirectory(AppSettings.BaseDataDir);
-            File.WriteAllText(playlistPath, contentBuilder.ToString());
-            Log.Success($"Successfully created playlist: {Path.GetFileName(playlistPath)} with {tracks.Count} songs.");
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"Failed to write playlist for tag '{tag}': {ex.Message}");
-        }
-    }
-}
-</file>
-
-<file path="D:\Parsa Stuff\Visual Studio\MusicDownloader\PlaylistGenerator\Source\Program.cs">
-using MusicDownloader;
-
-namespace PlaylistGenerator;
-
-class Program
-{
-    static void Main()
-    {
-        try
-        {
-            Log.Info("Starting playlist generation...");
-            PlaylistWriter.GeneratePlaylists();
-            Log.Success("All playlists generated successfully.");
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"A fatal error occurred: {ex.Message}");
-        }
-
-        Console.WriteLine();
-        Log.Info("Press any key to exit...");
-        Console.ReadKey();
     }
 }
 </file>
