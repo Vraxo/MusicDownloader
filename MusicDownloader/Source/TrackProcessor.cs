@@ -81,9 +81,13 @@ public class TrackProcessor
 
         string command = new FfmpegCommandBuilder(_track, inputFile, outputFile).Build();
 
+        string ffmpegPath = !string.IsNullOrWhiteSpace(AppSettings.FfmpegDir)
+            ? Path.Combine(AppSettings.FfmpegDir, AppSettings.FfmpegExe)
+            : AppSettings.FfmpegExe;
+
         int exitCode = await Task.Run(() =>
         {
-            return ProcessExecutor.Run(AppSettings.FfmpegExe, command);
+            return ProcessExecutor.Run(ffmpegPath, command);
         });
 
         if (exitCode != 0)

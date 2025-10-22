@@ -21,15 +21,18 @@ public class YtDlpCommandBuilder
         // This requests the best audio stream that uses the opus codec, then falls back to bestaudio.
         string formatArg = "-f \"bestaudio[acodec=opus]/bestaudio\" ";
 
-        // This argument helps yt-dlp handle YouTube's rate-limiting (HTTP 429) more gracefully.
-        string extractorArgs = "--extractor-args \"youtubetab:skip=authcheck\" ";
+        // Provide yt-dlp with the directory containing ffmpeg if specified.
+        // This is necessary if ffmpeg is in a path not visible to the yt-dlp process.
+        string ffmpegLocationArg = !string.IsNullOrWhiteSpace(AppSettings.FfmpegDir)
+            ? $"--ffmpeg-location \"{AppSettings.FfmpegDir}\" "
+            : "";
 
         return $"{formatArg}" +
                $"\"{_track.Url}\" " +
-               extractorArgs +
                "--extract-audio " +
                $"--audio-format {AppSettings.AudioFormat} " +
                "--audio-quality 0 " +
+               ffmpegLocationArg +
                "--embed-thumbnail " +
                "--no-add-metadata " +
                $"--no-mtime {cookieArg}" +

@@ -13,6 +13,11 @@ public static class AppSettings
     public const string FfmpegExe = "ffmpeg";
     public const string FallbackYtDlpExe = @"C:\Program Files\yt-dlp\yt-dlp.exe";
 
+    // Path to the directory containing ffmpeg.exe and ffprobe.exe.
+    // yt-dlp will use this to find the tools for post-processing.
+    // Example: @"C:\Program Files\ffmpeg\bin" or @"C:\ffmpeg\bin"
+    public const string FfmpegDir = @"C:\Program Files\ffmpeg\bin";
+
     // Audio Settings
     public const string AudioFormat = "m4a";
     public const int AudioBitrateKbps = 320;
