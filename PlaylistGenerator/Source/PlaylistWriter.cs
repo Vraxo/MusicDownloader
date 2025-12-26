@@ -1,5 +1,5 @@
-﻿using System.Text;
-using MusicDownloader;
+﻿using MusicDownloader;
+using System.Text;
 
 namespace PlaylistGenerator;
 
@@ -7,6 +7,9 @@ public static class PlaylistWriter
 {
     public static void GeneratePlaylists()
     {
+        // Ensure settings are loaded before reading tracks
+        SettingsManager.LoadOrCreate();
+
         List<Track> allTracks = CsvTrackReader.ReadAllTracks();
 
         if (allTracks.Count == 0)
@@ -43,7 +46,7 @@ public static class PlaylistWriter
             {
                 if (!map.TryGetValue(tag, out List<Track>? trackList))
                 {
-                    trackList = new List<Track>();
+                    trackList = [];
                     map[tag] = trackList;
                 }
 
@@ -63,25 +66,26 @@ public static class PlaylistWriter
             .ThenBy(t => t.Title, StringComparer.OrdinalIgnoreCase)];
 
         StringBuilder contentBuilder = new();
+        string format = SettingsManager.Current.AudioFormat;
 
         for (int i = 0; i < sortedTracks.Count; i++)
         {
             Track track = sortedTracks[i];
-            string relativePath = Path.Combine(PathUtils.SafeFileName(track.Album), $"{PathUtils.SafeFileName(track.Title)}.{AppSettings.AudioFormat}");
+            string relativePath = Path.Combine(PathUtils.SafeFileName(track.Album), $"{PathUtils.SafeFileName(track.Title)}.{format}");
 
-            contentBuilder.AppendLine(relativePath);
+            _ = contentBuilder.AppendLine(relativePath);
 
             if ((i + 1) % 5 == 0 && (i + 1) < sortedTracks.Count)
             {
-                contentBuilder.AppendLine();
+                _ = contentBuilder.AppendLine();
             }
         }
 
         try
         {
             string safeTagFileName = PathUtils.SafeFileName(tag);
-            string playlistPath = Path.Combine(AppSettings.BaseDataDir, $"{safeTagFileName}.m3u");
-            Directory.CreateDirectory(AppSettings.BaseDataDir);
+            string playlistPath = Path.Combine(SettingsManager.Current.BaseDataDir, $"{safeTagFileName}.m3u");
+            _ = Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
             File.WriteAllText(playlistPath, contentBuilder.ToString());
             Log.Success($"Successfully created playlist: {Path.GetFileName(playlistPath)} with {tracks.Count} songs.");
         }

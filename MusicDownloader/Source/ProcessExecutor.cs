@@ -5,7 +5,8 @@ namespace MusicDownloader;
 
 public class ProcessExecutor
 {
-    public static int Run(string exe, string args)
+    // Added optional stdErrHandler to allow callers to override default logging behavior
+    public static int Run(string exe, string args, Action<string>? stdErrHandler = null)
     {
         try
         {
@@ -22,10 +23,34 @@ public class ProcessExecutor
                 }
             };
 
-            proc.OutputDataReceived += (_, e) => { if (!string.IsNullOrEmpty(e.Data)) Log.Info(e.Data); };
-            proc.ErrorDataReceived += (_, e) => { if (!string.IsNullOrEmpty(e.Data)) Log.Error(e.Data); };
+            // Capture Standard Output (usually normal logs/data)
+            proc.OutputDataReceived += (_, e) =>
+            {
+                if (!string.IsNullOrEmpty(e.Data))
+                {
+                    Log.Info(e.Data);
+                }
+            };
 
-            proc.Start();
+            // Capture Standard Error
+            // If a custom handler is provided (e.g., to suppress red text), use it.
+            // Otherwise, use the default heuristic.
+            proc.ErrorDataReceived += (_, e) =>
+            {
+                if (!string.IsNullOrEmpty(e.Data))
+                {
+                    if (stdErrHandler is not null)
+                    {
+                        stdErrHandler(e.Data);
+                    }
+                    else
+                    {
+                        HandleStdErr(e.Data);
+                    }
+                }
+            };
+
+            _ = proc.Start();
             proc.BeginOutputReadLine();
             proc.BeginErrorReadLine();
             proc.WaitForExit();
@@ -34,13 +59,42 @@ public class ProcessExecutor
         }
         catch (Win32Exception)
         {
-            // Re-throw to be handled by the caller, e.g., for fallback logic.
             throw;
         }
         catch (Exception ex)
         {
             Log.Error($"Unexpected error running '{exe}': {ex.Message}");
-            throw; // Re-throw to allow caller to handle the exception.
+            throw;
+        }
+    }
+
+    private static void HandleStdErr(string data)
+    {
+        // Heuristic: Check for keywords to decide log color.
+        // Casing is ignored for robustness.
+        if (data.Contains("error", StringComparison.OrdinalIgnoreCase) ||
+            data.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
+            data.Contains("fatal", StringComparison.OrdinalIgnoreCase))
+        {
+            // Real errors stay Red.
+            if (data.Contains("WARNING", StringComparison.OrdinalIgnoreCase))
+            {
+                Log.Warning(data);
+            }
+            else
+            {
+                Log.Error(data);
+            }
+        }
+        else if (data.Contains("warning", StringComparison.OrdinalIgnoreCase))
+        {
+            // Warnings become Yellow.
+            Log.Warning(data);
+        }
+        else
+        {
+            // Everything else (progress bars, stats, ffmpeg info) stays Gray/Info.
+            Log.Info(data);
         }
     }
 }

@@ -1,87 +1,53 @@
-﻿< file path = "D:\Parsa Stuff\Visual Studio\MusicDownloader\MusicDownloader\Source\FfmpegCommandBuilder.cs" >
+﻿using MusicDownloader;
 using System.Globalization;
-using System.Text;
 
-namespace MusicDownloader;
+namespace ManualAudioProcessor;
 
-public class FfmpegCommandBuilder
+public class FlacFfmpegCommandBuilder
 {
-    private readonly Track _track;
     private readonly string _inputFile;
     private readonly string _outputFile;
-    private readonly string _filterOpts;
+    private readonly string _tempo;
+    private readonly string _range;
+    private readonly int _sampleRate;
 
-    public FfmpegCommandBuilder(Track track, string inputFile, string outputFile)
+    public FlacFfmpegCommandBuilder(string inputFile, string outputFile, string tempo, string range, int sampleRate)
     {
-        _track = track;
         _inputFile = inputFile;
         _outputFile = outputFile;
-        _filterOpts = BuildFilterOptions();
+        _tempo = tempo;
+        _range = range;
+        _sampleRate = sampleRate;
     }
 
     public string Build()
     {
         string trimOpts = BuildTrimOptions();
+        string filterOpts = BuildFilterOptions();
 
-        if (!string.IsNullOrEmpty(_filterOpts))
-        {
-            return BuildFilterCommand(trimOpts);
-        }
-
-        return BuildSimpleCopyCommand(trimOpts);
-    }
-
-    private string BuildFilterCommand(string trimOpts)
-    {
-        return $"-y {trimOpts} " +
-               $"-i \"{_inputFile}\" {_filterOpts} " +
-               "-map 0:a -map 0:v " +
-               BuildMetadataArgs() +
-               "-map_metadata -1 " +
-               $"-c:a aac -b:a {AppSettings.AudioBitrateKbps}k " +
-               "-c:v copy " +
-               $"\"{_outputFile}\"";
-    }
-
-    private string BuildSimpleCopyCommand(string trimOpts)
-    {
-        return $"-y {trimOpts} " +
+        return !string.IsNullOrEmpty(filterOpts)
+            ? $"-y {trimOpts} " +
+                   $"-i \"{_inputFile}\" {filterOpts} " +
+                   "-map 0 " +
+                   "-map_metadata -1 " +
+                   "-c:a flac " +
+                   $"\"{_outputFile}\""
+            : $"-y {trimOpts} " +
                $"-i \"{_inputFile}\" " +
                "-map 0 " +
-               BuildMetadataArgs() +
                "-map_metadata -1 " +
                "-c copy " +
                $"\"{_outputFile}\"";
     }
 
-    private string BuildMetadataArgs()
-    {
-        var builder = new StringBuilder();
-        builder.Append($"-metadata title=\"{_track.Title}\" ");
-        builder.Append($"-metadata artist=\"{_track.Artist}\" ");
-        builder.Append($"-metadata album=\"{_track.Album}\" ");
-
-        if (!string.IsNullOrWhiteSpace(_track.TrackNumber))
-        {
-            builder.Append($"-metadata track=\"{_track.TrackNumber}\" ");
-        }
-
-        if (!string.IsNullOrWhiteSpace(_track.DiscNumber))
-        {
-            builder.Append($"-metadata disc=\"{_track.DiscNumber}\" ");
-        }
-
-        return builder.ToString();
-    }
-
     private string BuildTrimOptions()
     {
-        if (string.IsNullOrWhiteSpace(_track.Range))
+        if (string.IsNullOrWhiteSpace(_range))
         {
             return "";
         }
 
-        string[] parts = _track.Range.Split('-');
+        string[] parts = _range.Split('-');
         if (parts.Length != 2)
         {
             return "";
@@ -97,25 +63,22 @@ public class FfmpegCommandBuilder
 
     private string BuildFilterOptions()
     {
-        if (string.IsNullOrWhiteSpace(_track.Tempo) || !double.TryParse(_track.Tempo, NumberStyles.Any, CultureInfo.InvariantCulture, out double tempoPercent))
+        if (string.IsNullOrWhiteSpace(_tempo) || !double.TryParse(_tempo, NumberStyles.Any, CultureInfo.InvariantCulture, out double tempoPercent))
         {
             return "";
         }
 
         double tempoMultiplier = tempoPercent / 100.0;
 
-        if (AppSettings.PreservePitchWhenChangingTempo)
+        if (SettingsManager.Current.PreservePitchWhenChangingTempo)
         {
             string tempoFormatted = tempoMultiplier.ToString("0.000", CultureInfo.InvariantCulture);
             return $"-filter:a \"atempo={tempoFormatted}\"";
         }
         else
         {
-            // Pre-calculate the new sample rate to avoid issues with ffmpeg's expression parser.
-            // We assume a 48000Hz source rate, which is standard for web audio and confirmed in logs.
-            int newSampleRate = (int)Math.Round(48000 * tempoMultiplier);
+            int newSampleRate = (int)Math.Round(_sampleRate * tempoMultiplier);
             return $"-filter:a \"asetrate={newSampleRate}\"";
         }
     }
 }
-</file>

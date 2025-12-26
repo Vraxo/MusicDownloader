@@ -1,12 +1,16 @@
 ﻿namespace MusicDownloader;
 
-class Program
+internal class Program
 {
-    static async Task Main()
+    private static async Task Main()
     {
         try
         {
-            Directory.CreateDirectory(AppSettings.BaseDataDir);
+            SettingsManager.LoadOrCreate();
+            _ = Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
+
+            // Diagnostic check removed
+
             Log.Info("Starting processing...");
             await ProcessTracksFromCsvAsync();
             Log.Success("All downloads and processing finished.");
@@ -18,10 +22,10 @@ class Program
 
         Console.WriteLine();
         Log.Info("Press any key to exit...");
-        Console.ReadKey();
+        _ = Console.ReadKey();
     }
 
-    static async Task ProcessTracksFromCsvAsync()
+    private static async Task ProcessTracksFromCsvAsync()
     {
         List<Track> allTracks = CsvTrackReader.ReadAllTracks();
         if (allTracks.Count == 0)
@@ -31,14 +35,20 @@ class Program
 
         foreach (var track in allTracks)
         {
+            bool downloadAttempted = false;
             try
             {
                 TrackProcessor trackProcessor = new(track);
-                await trackProcessor.ProcessAsync();
+                downloadAttempted = await trackProcessor.ProcessAsync();
             }
             catch (Exception ex)
             {
                 Log.Error($"Processing failed for track '{track.Title}': {ex.Message}");
+            }
+
+            if (downloadAttempted && SettingsManager.Current.DelayBetweenDownloadsMs > 0)
+            {
+                await Task.Delay(SettingsManager.Current.DelayBetweenDownloadsMs);
             }
         }
     }

@@ -1,6 +1,6 @@
-﻿using System.Globalization;
-using CsvHelper;
+﻿using CsvHelper;
 using CsvHelper.Configuration;
+using System.Globalization;
 
 namespace MusicDownloader;
 
@@ -8,18 +8,20 @@ public static class CsvTrackReader
 {
     public static List<Track> ReadAllTracks()
     {
-        if (!Directory.Exists(AppSettings.CsvDir))
+        string csvDir = SettingsManager.Current.CsvDir;
+
+        if (!Directory.Exists(csvDir))
         {
-            Log.Error($"CSV input directory '{AppSettings.CsvDir}' not found.");
+            Log.Error($"CSV input directory '{csvDir}' not found.");
             return [];
         }
 
-        List<string> csvFiles = Directory.EnumerateFiles(AppSettings.CsvDir, "*.csv").ToList();
-        
+        List<string> csvFiles = Directory.EnumerateFiles(csvDir, "*.csv").ToList();
+
         if (csvFiles.Count == 0)
         {
-            Log.Warning($"No .csv files found in '{AppSettings.CsvDir}'.");
-            return new List<Track>();
+            Log.Warning($"No .csv files found in '{csvDir}'.");
+            return [];
         }
 
         List<Track> tracks = [];
@@ -41,9 +43,9 @@ public static class CsvTrackReader
             Delimiter = "|",
             HasHeaderRecord = true,
             TrimOptions = TrimOptions.Trim,
-            MissingFieldFound = null, // Suppress errors for optional fields
-            HeaderValidated = null, // Don't throw an exception if headers are missing.
-            PrepareHeaderForMatch = args => args.Header.ToLowerInvariant(), // Match headers case-insensitively.
+            MissingFieldFound = null,
+            HeaderValidated = null,
+            PrepareHeaderForMatch = args => args.Header.ToLowerInvariant(),
             BadDataFound = context =>
             {
                 Log.Warning($"Skipping bad CSV line in {Path.GetFileName(filePath)} at row {context.RawRecord.Length}: {context.RawRecord}");
@@ -55,7 +57,7 @@ public static class CsvTrackReader
             using StreamReader reader = new(filePath);
             using CsvReader csv = new(reader, config);
 
-            csv.Context.RegisterClassMap<TrackMap>();
+            _ = csv.Context.RegisterClassMap<TrackMap>();
 
             var records = csv.GetRecords<Track>().Select(ProcessUrl).ToList();
 
@@ -70,14 +72,11 @@ public static class CsvTrackReader
 
     private static Track ProcessUrl(Track track)
     {
-        if (string.IsNullOrWhiteSpace(track.Url) || track.Url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-        {
-            return track;
-        }
-
-        return track with 
-        { 
-            Url = $"https://www.youtube.com/watch?v={track.Url.Trim()}" 
-        };
+        return string.IsNullOrWhiteSpace(track.Url) || track.Url.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+            ? track
+            : (track with
+            {
+                Url = $"https://www.youtube.com/watch?v={track.Url.Trim()}"
+            });
     }
 }

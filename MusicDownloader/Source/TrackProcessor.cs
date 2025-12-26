@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel;
+using System.Globalization;
 
 namespace MusicDownloader;
 
@@ -10,33 +11,56 @@ public class TrackProcessor
     public TrackProcessor(Track track)
     {
         _track = track;
-        _albumDir = Path.Combine(AppSettings.BaseDataDir, PathUtils.SafeFileName(_track.Album));
+        _albumDir = Path.Combine(SettingsManager.Current.BaseDataDir, PathUtils.SafeFileName(_track.Album));
     }
 
-    public async Task ProcessAsync()
+    public async Task<bool> ProcessAsync()
     {
-        Directory.CreateDirectory(_albumDir);
+        _ = Directory.CreateDirectory(_albumDir);
 
-        string outputFile = Path.Combine(_albumDir, PathUtils.SafeFileName(_track.Title) + $".{AppSettings.AudioFormat}");
+        string format = SettingsManager.Current.AudioFormat;
+        string outputFile = Path.Combine(_albumDir, PathUtils.SafeFileName(_track.Title) + $".{format}");
 
         if (File.Exists(outputFile))
         {
-            return;
+            return false;
         }
 
-        string tempFile = Path.Combine(_albumDir, "temp." + AppSettings.AudioFormat);
-        string outFile = Path.Combine(_albumDir, "out." + AppSettings.AudioFormat);
+        string tempFile = Path.Combine(_albumDir, "temp." + format);
+        string outFile = Path.Combine(_albumDir, "out." + format);
 
         try
         {
-            if (!await DownloadAsync(tempFile))
+            // 1. Attempt efficient Partial Download.
+            if (!await DownloadWithFallbackAsync(tempFile))
             {
-                return;
+                return true;
             }
 
-            if (!await ProcessAudioAsync(tempFile, outFile))
+            // 2. Determine if we need to trim locally.
+            Track trackForProcessing = _track;
+
+            if (!string.IsNullOrWhiteSpace(_track.Range))
             {
-                return;
+                double actualDuration = AudioProber.GetDuration(tempFile);
+                double expectedDuration = ParseDuration(_track.Range);
+
+                // If actual duration matches expected (tolerance 10s), the partial download worked.
+                if (actualDuration > 0 && expectedDuration > 0 && Math.Abs(actualDuration - expectedDuration) < 10)
+                {
+                    Log.Info($"Partial download success ({actualDuration:F1}s). Skipping local trim.");
+                    trackForProcessing = _track with { Range = string.Empty };
+                }
+                else
+                {
+                    Log.Info($"Full file detected ({actualDuration:F1}s). Local trim will be applied.");
+                }
+            }
+
+            // 3. Process Audio (Convert, Loop, Tempo, Metadata).
+            if (!await ProcessAudioAsync(trackForProcessing, tempFile, outFile))
+            {
+                return true;
             }
 
             File.Move(outFile, outputFile, true);
@@ -51,46 +75,104 @@ public class TrackProcessor
             CleanupTempFiles();
             Console.WriteLine();
         }
-    }
-
-    private async Task<bool> DownloadAsync(string tempFilePath)
-    {
-        Log.Action($"Downloading: {_track.Title}");
-
-        string command = new YtDlpCommandBuilder(_track, tempFilePath).Build();
-
-        string ytDlpPath = !string.IsNullOrWhiteSpace(AppSettings.YtDlpDir)
-            ? Path.Combine(AppSettings.YtDlpDir, AppSettings.YtDlpExe)
-            : AppSettings.YtDlpExe;
-
-        try
-        {
-            int exitCode = await Task.Run(() => ProcessExecutor.Run(ytDlpPath, command));
-
-            if (exitCode != 0)
-            {
-                Log.Error($"yt-dlp failed for {_track.Title}, skipping...");
-                return false;
-            }
-        }
-        catch (Win32Exception)
-        {
-            Log.Error($"Could not find '{ytDlpPath}'. Make sure yt-dlp is in your PATH or the YtDlpDir is set correctly in AppSettings.");
-            return false;
-        }
 
         return true;
     }
 
-    private async Task<bool> ProcessAudioAsync(string inputFile, string outputFile)
+    private async Task<bool> DownloadWithFallbackAsync(string tempFilePath)
     {
-        Log.Action($"Processing: {_track.Title}");
+        // Strategy 1: Try Partial Download.
+        // We pass 'isPartial: true' to enforce strict format rules.
+        // We pass 'suppressErrors: true' to log yt-dlp errors as Warnings, not Errors.
+        bool isPartial = !string.IsNullOrEmpty(_track.Range);
+        if (await RunDownloadAsync(_track, tempFilePath, suppressErrors: isPartial, isPartial: isPartial))
+        {
+            return true;
+        }
 
-        string command = new FfmpegCommandBuilder(_track, inputFile, outputFile).Build();
+        // Strategy 2: Fallback to Full Download.
+        if (isPartial)
+        {
+            if (File.Exists(tempFilePath))
+            {
+                File.Delete(tempFilePath);
+            }
 
-        string ffmpegPath = !string.IsNullOrWhiteSpace(AppSettings.FfmpegDir)
-            ? Path.Combine(AppSettings.FfmpegDir, AppSettings.FfmpegExe)
-            : AppSettings.FfmpegExe;
+            Console.WriteLine();
+            Log.Warning("Partial download strategy unavailable. Switching to Full Download Fallback...");
+            Log.Action(">>> DOWNLOADING FULL FILE (Safe Mode)...");
+
+            Track fullTrack = _track with { Range = string.Empty };
+
+            // For the fallback, we DO want to see real errors in Red if it fails.
+            if (await RunDownloadAsync(fullTrack, tempFilePath, suppressErrors: false, isPartial: false))
+            {
+                return true;
+            }
+        }
+
+        Log.Error($"All download attempts failed for {_track.Title}.");
+        return false;
+    }
+
+    private async Task<bool> RunDownloadAsync(Track track, string tempFilePath, bool suppressErrors, bool isPartial)
+    {
+        string mode = isPartial ? "Partial" : "Full";
+        Log.Action($"Downloading ({mode}): {track.Title}");
+
+        string command = new YtDlpCommandBuilder(track, tempFilePath, isPartial).Build();
+        string ytDlpPath = ExecutableFinder.GetFullPath(SettingsManager.Current.YtDlpExe, SettingsManager.Current.YtDlpDir);
+
+        // Custom handler: If we are suppressing errors, print everything from stderr as a Warning or Info.
+        Action<string>? errorHandler = null;
+
+        if (suppressErrors)
+        {
+            errorHandler = (data) =>
+            {
+                // Filter out non-critical progress info if needed, but mainly ensure it's not RED.
+                if (data.Contains("error", StringComparison.OrdinalIgnoreCase) ||
+                    data.Contains("failed", StringComparison.OrdinalIgnoreCase))
+                {
+                    Log.Warning($"[Speculative] {data}");
+                }
+                else
+                {
+                    Log.Info(data);
+                }
+            };
+        }
+
+        try
+        {
+            int exitCode = await Task.Run(() => ProcessExecutor.Run(ytDlpPath, command, errorHandler));
+            return exitCode == 0;
+        }
+        catch (Win32Exception)
+        {
+            Log.Error($"Could not find '{SettingsManager.Current.YtDlpExe}'.");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            if (suppressErrors)
+            {
+                Log.Warning($"Download attempt skipped ({ex.Message}). Retrying...");
+            }
+            else
+            {
+                Log.Error($"Download error for {track.Title}: {ex.Message}");
+            }
+            return false;
+        }
+    }
+
+    private async Task<bool> ProcessAudioAsync(Track track, string inputFile, string outputFile)
+    {
+        Log.Action($"Processing: {track.Title}");
+
+        string command = new FfmpegCommandBuilder(track, inputFile, outputFile).Build();
+        string ffmpegPath = ExecutableFinder.GetFullPath(SettingsManager.Current.FfmpegExe, SettingsManager.Current.FfmpegDir);
 
         try
         {
@@ -98,17 +180,43 @@ public class TrackProcessor
 
             if (exitCode != 0)
             {
-                Log.Error($"ffmpeg processing failed for {_track.Title}, skipping...");
+                Log.Error($"ffmpeg processing failed for {track.Title}.");
                 return false;
             }
         }
         catch (Win32Exception)
         {
-            Log.Error($"Could not find '{ffmpegPath}'. Make sure ffmpeg is in your PATH or the FfmpegDir is set correctly in AppSettings.");
+            Log.Error($"Could not find '{SettingsManager.Current.FfmpegExe}'.");
             return false;
         }
 
         return true;
+    }
+
+    private double ParseDuration(string range)
+    {
+        try
+        {
+            string[] parts = range.Split('-');
+            if (parts.Length != 2)
+            {
+                return -1;
+            }
+
+            TimeSpan start = ParseTime(parts[0]);
+            TimeSpan end = ParseTime(parts[1]);
+            return (end - start).TotalSeconds;
+        }
+        catch { return -1; }
+    }
+
+    private TimeSpan ParseTime(string timeStr)
+    {
+        return TimeSpan.TryParse(timeStr, CultureInfo.InvariantCulture, out TimeSpan ts)
+            ? ts
+            : double.TryParse(timeStr, NumberStyles.Any, CultureInfo.InvariantCulture, out double sec)
+            ? TimeSpan.FromSeconds(sec)
+            : TimeSpan.Zero;
     }
 
     private void CleanupTempFiles()
@@ -118,13 +226,7 @@ public class TrackProcessor
 
         foreach (string file in tempFiles)
         {
-            try
-            {
-                File.Delete(file);
-            }
-            catch
-            {
-            }
+            try { File.Delete(file); } catch { }
         }
     }
 }

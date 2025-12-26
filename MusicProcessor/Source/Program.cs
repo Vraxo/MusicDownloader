@@ -6,13 +6,16 @@ public static class Program
 {
     public static void Main()
     {
+        // Ensure settings are loaded
+        SettingsManager.LoadOrCreate();
+
         Log.Info("--- Manual FLAC Audio Processor ---");
         Console.WriteLine();
 
         try
         {
             string? inputFile = UserInput.GetInputFilePath();
-            
+
             if (inputFile is null)
             {
                 return;
@@ -20,7 +23,7 @@ public static class Program
 
             Log.Info("Probing audio file for details...");
             int sampleRate = AudioProber.GetSampleRate(inputFile);
-            
+
             if (sampleRate <= 0)
             {
                 Log.Error("Could not determine audio sample rate. Aborting process.");
@@ -45,10 +48,11 @@ public static class Program
 
             Log.Action("Processing audio...");
 
-            FlacFfmpegCommandBuilder commandBuilder = new FlacFfmpegCommandBuilder(inputFile, outputFile, tempo, range, sampleRate);
+            FlacFfmpegCommandBuilder commandBuilder = new(inputFile, outputFile, tempo, range, sampleRate);
             string command = commandBuilder.Build();
 
-            int exitCode = ProcessExecutor.Run(AppSettings.FfmpegExe, command);
+            string ffmpegExe = SettingsManager.Current.FfmpegExe;
+            int exitCode = ProcessExecutor.Run(ffmpegExe, command);
 
             Console.WriteLine();
             if (exitCode == 0)
@@ -69,7 +73,7 @@ public static class Program
         {
             Console.WriteLine();
             Log.Info("Press any key to exit...");
-            Console.ReadKey();
+            _ = Console.ReadKey();
         }
     }
 }
