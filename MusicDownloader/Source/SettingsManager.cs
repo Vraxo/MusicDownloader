@@ -20,6 +20,9 @@ public static class SettingsManager
             {
                 string json = File.ReadAllText(SettingsPath);
                 Current = JsonSerializer.Deserialize<Settings>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new Settings();
+
+                // Save back immediately to ensure any new fields (like CookiesBrowser) are added to the file.
+                SaveSettings();
             }
             catch (Exception ex)
             {
@@ -38,7 +41,7 @@ public static class SettingsManager
     {
         Log.Info($"Settings file not found. Creating a new one at '{SettingsPath}'");
 
-        var defaultSettings = new Settings
+        Current = new Settings
         {
             CsvDir = @"E:\Parsa Stuff\Documents\Music Collections",
             BaseDataDir = @"E:\Parsa Stuff\Audio\Music",
@@ -51,14 +54,24 @@ public static class SettingsManager
             AudioFormat = "m4a",
             AudioBitrateKbps = 320,
             PreservePitchWhenChangingTempo = false,
-            DelayBetweenDownloadsMs = 2500
+            DelayBetweenDownloadsMs = 2500,
+            CookiesBrowser = "chrome" // Default suggestion
         };
 
-        var options = new JsonSerializerOptions { WriteIndented = true };
-        string json = JsonSerializer.Serialize(defaultSettings, options);
+        SaveSettings();
+    }
 
-        File.WriteAllText(SettingsPath, json);
-
-        Current = defaultSettings;
+    private static void SaveSettings()
+    {
+        try
+        {
+            var options = new JsonSerializerOptions { WriteIndented = true };
+            string json = JsonSerializer.Serialize(Current, options);
+            File.WriteAllText(SettingsPath, json);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to save settings: {ex.Message}");
+        }
     }
 }

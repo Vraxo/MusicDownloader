@@ -1,5 +1,4 @@
 ﻿using System.ComponentModel;
-using System.Globalization;
 
 namespace MusicDownloader;
 
@@ -18,52 +17,47 @@ public class TrackProcessor
     {
         _ = Directory.CreateDirectory(_albumDir);
 
-        string format = SettingsManager.Current.AudioFormat;
-        string outputFile = Path.Combine(_albumDir, PathUtils.SafeFileName(_track.Title) + $".{format}");
+        string finalFormat = SettingsManager.Current.AudioFormat;
+        string outputFile = Path.Combine(_albumDir, PathUtils.SafeFileName(_track.Title) + $".{finalFormat}");
 
         if (File.Exists(outputFile))
         {
             return false;
         }
 
-        string tempFile = Path.Combine(_albumDir, "temp." + format);
-        string outFile = Path.Combine(_albumDir, "out." + format);
+        string tempFileBase = Path.Combine(_albumDir, "temp");
+        string finalTempOut = Path.Combine(_albumDir, "out." + finalFormat);
 
         try
         {
-            // 1. Attempt efficient Partial Download.
-            if (!await DownloadWithFallbackAsync(tempFile))
+            // 1. Download Full Audio + Thumbnail.
+            if (!await RunFullDownloadAsync(tempFileBase))
             {
                 return true;
             }
 
-            // 2. Determine if we need to trim locally.
-            Track trackForProcessing = _track;
-
-            if (!string.IsNullOrWhiteSpace(_track.Range))
+            // 2. Find the downloaded audio file (e.g., temp.m4a).
+            string? downloadedAudio = FindDownloadedFile(tempFileBase);
+            if (downloadedAudio == null)
             {
-                double actualDuration = AudioProber.GetDuration(tempFile);
-                double expectedDuration = ParseDuration(_track.Range);
-
-                // If actual duration matches expected (tolerance 10s), the partial download worked.
-                if (actualDuration > 0 && expectedDuration > 0 && Math.Abs(actualDuration - expectedDuration) < 10)
-                {
-                    Log.Info($"Partial download success ({actualDuration:F1}s). Skipping local trim.");
-                    trackForProcessing = _track with { Range = string.Empty };
-                }
-                else
-                {
-                    Log.Info($"Full file detected ({actualDuration:F1}s). Local trim will be applied.");
-                }
+                Log.Error("Download reported success, but no audio file was found.");
+                return true;
             }
 
-            // 3. Process Audio (Convert, Loop, Tempo, Metadata).
-            if (!await ProcessAudioAsync(trackForProcessing, tempFile, outFile))
+            // 3. Find the downloaded cover art (e.g., temp.webp, temp.jpg).
+            string? downloadedCover = FindCoverFile(tempFileBase);
+            if (downloadedCover != null)
+            {
+                Log.Info($"Found cover art: {Path.GetFileName(downloadedCover)}");
+            }
+
+            // 4. Process Audio (Trimming, Loop, Tempo, Embedding Cover).
+            if (!await ProcessAudioAsync(_track, downloadedAudio, downloadedCover, finalTempOut))
             {
                 return true;
             }
 
-            File.Move(outFile, outputFile, true);
+            File.Move(finalTempOut, outputFile, true);
             Log.Success($"Done: {_track.Title}");
         }
         catch (Exception ex)
@@ -79,99 +73,67 @@ public class TrackProcessor
         return true;
     }
 
-    private async Task<bool> DownloadWithFallbackAsync(string tempFilePath)
+    private static string? FindDownloadedFile(string baseName)
     {
-        // Strategy 1: Try Partial Download.
-        // We pass 'isPartial: true' to enforce strict format rules.
-        // We pass 'suppressErrors: true' to log yt-dlp errors as Warnings, not Errors.
-        bool isPartial = !string.IsNullOrEmpty(_track.Range);
-        if (await RunDownloadAsync(_track, tempFilePath, suppressErrors: isPartial, isPartial: isPartial))
+        string dir = Path.GetDirectoryName(baseName)!;
+        string fileName = Path.GetFileName(baseName); // "temp"
+
+        string[] candidates = Directory.GetFiles(dir, $"{fileName}.*");
+
+        return candidates.FirstOrDefault(f =>
         {
-            return true;
-        }
-
-        // Strategy 2: Fallback to Full Download.
-        if (isPartial)
-        {
-            if (File.Exists(tempFilePath))
-            {
-                File.Delete(tempFilePath);
-            }
-
-            Console.WriteLine();
-            Log.Warning("Partial download strategy unavailable. Switching to Full Download Fallback...");
-            Log.Action(">>> DOWNLOADING FULL FILE (Safe Mode)...");
-
-            Track fullTrack = _track with { Range = string.Empty };
-
-            // For the fallback, we DO want to see real errors in Red if it fails.
-            if (await RunDownloadAsync(fullTrack, tempFilePath, suppressErrors: false, isPartial: false))
-            {
-                return true;
-            }
-        }
-
-        Log.Error($"All download attempts failed for {_track.Title}.");
-        return false;
+            string ext = Path.GetExtension(f).ToLowerInvariant();
+            // Exclude common non-audio files
+            return ext is not ".webp" and not ".jpg" and not ".png" and not ".json" and not ".part" and not ".ytdl";
+        });
     }
 
-    private async Task<bool> RunDownloadAsync(Track track, string tempFilePath, bool suppressErrors, bool isPartial)
+    private static string? FindCoverFile(string baseName)
     {
-        string mode = isPartial ? "Partial" : "Full";
-        Log.Action($"Downloading ({mode}): {track.Title}");
+        string dir = Path.GetDirectoryName(baseName)!;
+        string fileName = Path.GetFileName(baseName); // "temp"
 
-        string command = new YtDlpCommandBuilder(track, tempFilePath, isPartial).Build();
+        string[] candidates = Directory.GetFiles(dir, $"{fileName}.*");
+
+        // Prefer highest quality/common image formats
+        return candidates.FirstOrDefault(f => f.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
+            ?? candidates.FirstOrDefault(f => f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase))
+            ?? candidates.FirstOrDefault(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+            ?? candidates.FirstOrDefault(f => f.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private async Task<bool> RunFullDownloadAsync(string tempFileBase)
+    {
+        Log.Action($"Downloading: {_track.Title}");
+
+        string command = new YtDlpCommandBuilder(_track, tempFileBase).Build();
         string ytDlpPath = ExecutableFinder.GetFullPath(SettingsManager.Current.YtDlpExe, SettingsManager.Current.YtDlpDir);
-
-        // Custom handler: If we are suppressing errors, print everything from stderr as a Warning or Info.
-        Action<string>? errorHandler = null;
-
-        if (suppressErrors)
-        {
-            errorHandler = (data) =>
-            {
-                // Filter out non-critical progress info if needed, but mainly ensure it's not RED.
-                if (data.Contains("error", StringComparison.OrdinalIgnoreCase) ||
-                    data.Contains("failed", StringComparison.OrdinalIgnoreCase))
-                {
-                    Log.Warning($"[Speculative] {data}");
-                }
-                else
-                {
-                    Log.Info(data);
-                }
-            };
-        }
 
         try
         {
-            int exitCode = await Task.Run(() => ProcessExecutor.Run(ytDlpPath, command, errorHandler));
-            return exitCode == 0;
+            int exitCode = await Task.Run(() => ProcessExecutor.Run(ytDlpPath, command));
+
+            if (exitCode != 0)
+            {
+                Log.Error($"Download failed for {_track.Title}.");
+                return false;
+            }
+
+            return true;
         }
         catch (Win32Exception)
         {
             Log.Error($"Could not find '{SettingsManager.Current.YtDlpExe}'.");
             return false;
         }
-        catch (Exception ex)
-        {
-            if (suppressErrors)
-            {
-                Log.Warning($"Download attempt skipped ({ex.Message}). Retrying...");
-            }
-            else
-            {
-                Log.Error($"Download error for {track.Title}: {ex.Message}");
-            }
-            return false;
-        }
     }
 
-    private async Task<bool> ProcessAudioAsync(Track track, string inputFile, string outputFile)
+    private async Task<bool> ProcessAudioAsync(Track track, string inputFile, string? coverFile, string outputFile)
     {
         Log.Action($"Processing: {track.Title}");
 
-        string command = new FfmpegCommandBuilder(track, inputFile, outputFile).Build();
+        // Pass the coverFile to the builder so it can be embedded as an attached picture.
+        string command = new FfmpegCommandBuilder(track, inputFile, outputFile, coverFile).Build();
         string ffmpegPath = ExecutableFinder.GetFullPath(SettingsManager.Current.FfmpegExe, SettingsManager.Current.FfmpegDir);
 
         try
@@ -193,40 +155,24 @@ public class TrackProcessor
         return true;
     }
 
-    private double ParseDuration(string range)
-    {
-        try
-        {
-            string[] parts = range.Split('-');
-            if (parts.Length != 2)
-            {
-                return -1;
-            }
-
-            TimeSpan start = ParseTime(parts[0]);
-            TimeSpan end = ParseTime(parts[1]);
-            return (end - start).TotalSeconds;
-        }
-        catch { return -1; }
-    }
-
-    private TimeSpan ParseTime(string timeStr)
-    {
-        return TimeSpan.TryParse(timeStr, CultureInfo.InvariantCulture, out TimeSpan ts)
-            ? ts
-            : double.TryParse(timeStr, NumberStyles.Any, CultureInfo.InvariantCulture, out double sec)
-            ? TimeSpan.FromSeconds(sec)
-            : TimeSpan.Zero;
-    }
-
     private void CleanupTempFiles()
     {
+        if (!Directory.Exists(_albumDir))
+        {
+            return;
+        }
+
+        // Clean up everything starting with "temp." or "out."
         IEnumerable<string> tempFiles = Directory.EnumerateFiles(_albumDir, "temp.*")
             .Concat(Directory.EnumerateFiles(_albumDir, "out.*"));
 
         foreach (string file in tempFiles)
         {
-            try { File.Delete(file); } catch { }
+            try
+            {
+                File.Delete(file);
+            }
+            catch { }
         }
     }
 }

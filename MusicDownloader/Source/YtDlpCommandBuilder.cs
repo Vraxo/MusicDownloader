@@ -3,86 +3,63 @@
 public class YtDlpCommandBuilder
 {
     private readonly Track _track;
-    private readonly string _tempFilePath;
-    private readonly bool _isPartial;
+    private readonly string _tempFileBase;
 
-    public YtDlpCommandBuilder(Track track, string tempFilePath, bool isPartial)
+    public YtDlpCommandBuilder(Track track, string tempFileBase)
     {
         _track = track;
-        _tempFilePath = tempFilePath;
-        _isPartial = isPartial;
+        _tempFileBase = tempFileBase;
     }
 
     public string Build()
     {
-        // STRATEGY: Use the default Web Client + Valid Cookies.
-        // Since your version does not support the newer clients, we rely on the standard Web client.
-        // This is the ONLY client that supports cookies on your build.
+        // STRATEGY: STRICT AUDIO-ONLY FULL DOWNLOAD
+        // 1. Force native downloader to bypass firewall/ISP throttling on non-native clients.
+        // 2. Remove User-Agent completely. This allows yt-dlp to match the UA to the cookies provided.
+        // 3. Support both browser cookies and file cookies.
 
-        string cookieArg = File.Exists(SettingsManager.Current.CookieFile)
-            ? $"--cookies \"{SettingsManager.Current.CookieFile}\" "
-            : "";
+        string cookieArg = GetCookieArgs();
+        string ffmpegLocationArg = GetFfmpegArgs();
 
-        // Standard Chrome User-Agent
-        string userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+        // STRICT: Audio Only. Never fallback to video.
+        const string formatArg = "-f \"bestaudio[ext=m4a]/bestaudio\" ";
 
-        // FIX: Do not force specific clients (like android) because your build skips them.
-        // Let yt-dlp default to web.
-        string extractorArgs = "";
-
-        // FIX: Prioritize audio-only streams. These are usually easier to download.
-        string formatArg = "-f \"bestaudio[ext=m4a]/bestaudio/best\" ";
-
-        string ffmpegLocationArg = !string.IsNullOrWhiteSpace(SettingsManager.Current.FfmpegDir)
-            ? $"--ffmpeg-location \"{SettingsManager.Current.FfmpegDir}\" "
-            : "";
-
-        // CRITICAL FIX: Force Native Downloader.
-        // This prevents the 'Error -138' because yt-dlp handles the download,
-        // not ffmpeg. This fixes the network crash.
-        string downloaderSelection = "--downloader \"http:native\" ";
-
-        // NETWORK STABILITY:
-        // Increased retries and timeouts to bypass bot detection.
-        string downloaderArgs = "--retries 20 --fragment-retries 20 --http-chunk-size 10M --socket-timeout 30 ";
-
-        string sectionArg = BuildSectionOption();
+        const string downloaderArgs = "--downloader native --retries 20 --fragment-retries 20 --http-chunk-size 10M --socket-timeout 30 ";
 
         return $"{formatArg}" +
-               $"--user-agent \"{userAgent}\" " +
-               extractorArgs +
                $"\"{_track.Url}\" " +
-               "--extract-audio " +
-               $"--audio-format {SettingsManager.Current.AudioFormat} " +
-               "--audio-quality 0 " +
                ffmpegLocationArg +
-               "--embed-thumbnail " +
+               "--write-thumbnail " +
                "--no-add-metadata " +
-               downloaderSelection +
                downloaderArgs +
                $"--no-mtime {cookieArg}" +
-               $"{sectionArg} " +
-               $"-o \"{_tempFilePath}\"";
+               $"-o \"{_tempFileBase}.%(ext)s\"";
     }
 
-    private string BuildSectionOption()
+    private static string GetCookieArgs()
     {
-        if (!_isPartial)
+        // 1. Browser Cookies (Most reliable for bypassing "Sign in" errors)
+        if (!string.IsNullOrWhiteSpace(SettingsManager.Current.CookiesBrowser))
         {
-            return "";
+            return $"--cookies-from-browser {SettingsManager.Current.CookiesBrowser} ";
         }
 
-        string[] parts = _track.Range.Split('-');
-        if (parts.Length != 2)
+        // 2. File Cookies (Fallback)
+        // Use absolute path to ensure yt-dlp finds it.
+        string relativePath = SettingsManager.Current.CookieFile;
+        if (File.Exists(relativePath))
         {
-            return "";
+            string absolutePath = Path.GetFullPath(relativePath);
+            return $"--cookies \"{absolutePath}\" ";
         }
 
-        string start = parts[0].Trim();
-        string end = parts[1].Trim();
+        return "";
+    }
 
-        return !string.IsNullOrEmpty(start) && !string.IsNullOrEmpty(end)
-            ? $"--download-sections \"*{start}-{end}\""
+    private static string GetFfmpegArgs()
+    {
+        return !string.IsNullOrWhiteSpace(SettingsManager.Current.FfmpegDir)
+            ? $"--ffmpeg-location \"{SettingsManager.Current.FfmpegDir}\" "
             : "";
     }
 }

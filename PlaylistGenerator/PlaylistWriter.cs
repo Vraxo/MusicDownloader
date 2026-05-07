@@ -21,6 +21,7 @@ public static class PlaylistWriter
         Console.WriteLine();
 
         Dictionary<string, List<Track>> tracksByTag = GroupTracksByTag(allTracks);
+
         if (tracksByTag.Count == 0)
         {
             Log.Info("No tags found on any tracks. No playlists will be generated.");
@@ -71,7 +72,7 @@ public static class PlaylistWriter
         for (int i = 0; i < sortedTracks.Count; i++)
         {
             Track track = sortedTracks[i];
-            string relativePath = Path.Combine(PathUtils.SafeFileName(track.Album), $"{PathUtils.SafeFileName(track.Title)}.{format}");
+            string relativePath = GetRelativePath(format, track);
 
             _ = contentBuilder.AppendLine(relativePath);
 
@@ -86,6 +87,7 @@ public static class PlaylistWriter
             string safeTagFileName = PathUtils.SafeFileName(tag);
             string playlistPath = Path.Combine(SettingsManager.Current.BaseDataDir, $"{safeTagFileName}.m3u");
             _ = Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
+
             File.WriteAllText(playlistPath, contentBuilder.ToString());
             Log.Success($"Successfully created playlist: {Path.GetFileName(playlistPath)} with {tracks.Count} songs.");
         }
@@ -93,5 +95,12 @@ public static class PlaylistWriter
         {
             Log.Error($"Failed to write playlist for tag '{tag}': {ex.Message}");
         }
+    }
+
+    private static string GetRelativePath(string format, Track track)
+    {
+        return Path.Combine(
+            PathUtils.SafeFileName(track.Album),
+            $"{PathUtils.SafeFileName(track.Title)}.{format}");
     }
 }

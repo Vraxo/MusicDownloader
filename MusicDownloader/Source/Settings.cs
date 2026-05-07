@@ -21,4 +21,8 @@ public class Settings
 
     // Delays
     public int DelayBetweenDownloadsMs { get; set; } = 2500;
+
+    // Authentication
+    // If set (e.g., "chrome", "firefox"), yt-dlp will grab cookies directly from the browser.
+    public string? CookiesBrowser { get; set; } = null;
 }

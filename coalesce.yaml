@@ -2,7 +2,7 @@
 # Excludes common directories like 'bin', 'obj', and '.vs'.
 
 # Path for the final merged output file.
-outputFilePath: coalesce.md
+outputFilePath: coalesce.txt
 
 # List of source directories to scan for files.
 sourceDirectoryPaths:

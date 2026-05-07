@@ -1,7 +1,7 @@
 ﻿using MusicDownloader;
 using System.Globalization;
 
-namespace ManualAudioProcessor;
+namespace MusicProcessor;
 
 public class FlacFfmpegCommandBuilder
 {

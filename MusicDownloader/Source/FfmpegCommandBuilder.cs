@@ -8,19 +8,21 @@ public class FfmpegCommandBuilder
     private readonly Track _track;
     private readonly string _inputFile;
     private readonly string _outputFile;
+    private readonly string? _coverFile;
 
-    public FfmpegCommandBuilder(Track track, string inputFile, string outputFile)
+    public FfmpegCommandBuilder(Track track, string inputFile, string outputFile, string? coverFile = null)
     {
         _track = track;
         _inputFile = inputFile;
         _outputFile = outputFile;
+        _coverFile = coverFile;
     }
 
     public string Build()
     {
         int loopCount = ParseLoopCount();
 
-        // If Loop is > 1, we MUST use a complex filter chain to handle Trim -> Loop -> Tempo correctly.
+        // If Loop is > 1, we MUST use a complex filter chain.
         if (loopCount > 1)
         {
             return BuildComplexLoopCommand(loopCount);
@@ -55,8 +57,6 @@ public class FfmpegCommandBuilder
         }
 
         // 2. Loop
-        // 'loop' filter takes the number of REPEATS. So playing 2 times means loop=1.
-        // size=2e9 allows looping up to ~12 hours of audio buffer, which is safe for music.
         filters.Add($"aloop=loop={loopCount - 1}:size=2147483647");
 
         // 3. Tempo
@@ -68,41 +68,117 @@ public class FfmpegCommandBuilder
 
         string filterChain = string.Join(",", filters);
 
-        // We map [outa] to output. We also copy video (cover art) if possible, or ignore it if not mapped.
-        // Note: We use -map 0:v? to copy cover art if present, but ignore failures.
-        return $"-y -i \"{_inputFile}\" " +
-               $"-filter_complex \"[0:a]{filterChain}[outa]\" " +
-               "-map \"[outa]\" -map 0:v? " +
-               BuildMetadataArgs() +
-               "-map_metadata -1 " +
-               $"-c:a aac -b:a {SettingsManager.Current.AudioBitrateKbps}k " +
-               "-c:v copy " +
-               $"\"{_outputFile}\"";
+        // Inputs
+        StringBuilder cmd = new();
+        _ = cmd.Append($"-y -i \"{_inputFile}\" ");
+
+        if (_coverFile is not null)
+        {
+            _ = cmd.Append($"-i \"{_coverFile}\" ");
+        }
+
+        // Filter Complex
+        _ = cmd.Append($"-filter_complex \"[0:a]{filterChain}[outa]\" ");
+
+        // Maps
+        _ = cmd.Append("-map \"[outa]\" ");
+
+        if (_coverFile is not null)
+        {
+            _ = cmd.Append("-map 1:0 "); // Map the cover art from second input
+        }
+        else
+        {
+            _ = cmd.Append("-map 0:v? "); // Try to map internal cover if exists
+        }
+
+        // Metadata & Codecs
+        _ = cmd.Append(BuildMetadataArgs());
+        _ = cmd.Append("-map_metadata -1 ");
+        _ = cmd.Append($"-c:a aac -b:a {SettingsManager.Current.AudioBitrateKbps}k ");
+
+        if (_coverFile is not null)
+        {
+            // Force MJPEG for compatibility (WebP covers break many players)
+            _ = cmd.Append("-c:v mjpeg -disposition:v:0 attached_pic ");
+        }
+        else
+        {
+            _ = cmd.Append("-c:v copy ");
+        }
+
+        _ = cmd.Append($"\"{_outputFile}\"");
+
+        return cmd.ToString();
     }
 
     // --- STANDARD MODE (Simple Args) ---
 
     private string BuildSimpleFilterCommand(string trimOpts, string filterOpts)
     {
-        return $"-y {trimOpts} " +
-               $"-i \"{_inputFile}\" {filterOpts} " +
-               "-map 0:a -map 0:v " +
-               BuildMetadataArgs() +
-               "-map_metadata -1 " +
-               $"-c:a aac -b:a {SettingsManager.Current.AudioBitrateKbps}k " +
-               "-c:v copy " +
-               $"\"{_outputFile}\"";
+        StringBuilder cmd = new();
+        _ = cmd.Append($"-y {trimOpts} -i \"{_inputFile}\" ");
+
+        if (_coverFile is not null)
+        {
+            _ = cmd.Append($"-i \"{_coverFile}\" ");
+        }
+
+        _ = cmd.Append($"{filterOpts} ");
+
+        // Maps
+        _ = cmd.Append("-map 0:a "); // Map audio from first input
+
+        if (_coverFile is not null)
+        {
+            _ = cmd.Append("-map 1:0 "); // Map cover from second input
+        }
+        else
+        {
+            _ = cmd.Append("-map 0:v? "); // Fallback
+        }
+
+        // Metadata & Codecs
+        _ = cmd.Append(BuildMetadataArgs());
+        _ = cmd.Append("-map_metadata -1 ");
+        _ = cmd.Append($"-c:a aac -b:a {SettingsManager.Current.AudioBitrateKbps}k ");
+
+        _ = _coverFile is not null ? cmd.Append("-c:v mjpeg -disposition:v:0 attached_pic ") : cmd.Append("-c:v copy ");
+
+        _ = cmd.Append($"\"{_outputFile}\"");
+
+        return cmd.ToString();
     }
 
     private string BuildSimpleCopyCommand(string trimOpts)
     {
-        return $"-y {trimOpts} " +
-               $"-i \"{_inputFile}\" " +
-               "-map 0 " +
-               BuildMetadataArgs() +
-               "-map_metadata -1 " +
-               "-c copy " +
-               $"\"{_outputFile}\"";
+        StringBuilder cmd = new();
+        _ = cmd.Append($"-y {trimOpts} -i \"{_inputFile}\" ");
+
+        if (_coverFile is not null)
+        {
+            _ = cmd.Append($"-i \"{_coverFile}\" ");
+        }
+
+        // Maps
+        _ = cmd.Append("-map 0:a ");
+
+        _ = _coverFile is not null ? cmd.Append("-map 1:0 ") : cmd.Append("-map 0:v? ");
+
+        // Metadata & Codecs
+        _ = cmd.Append(BuildMetadataArgs());
+        _ = cmd.Append("-map_metadata -1 ");
+
+        // Even in "copy" mode, we might need to re-encode audio if we are mixing inputs,
+        // but here we asked for simple copy. However, if we are adding a cover, we can't just "-c copy" globally.
+        // We will copy audio and MJPEG the video.
+        _ = cmd.Append("-c:a copy ");
+
+        _ = _coverFile is not null ? cmd.Append("-c:v mjpeg -disposition:v:0 attached_pic ") : cmd.Append("-c:v copy ");
+
+        _ = cmd.Append($"\"{_outputFile}\"");
+
+        return cmd.ToString();
     }
 
     // --- HELPERS ---

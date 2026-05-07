@@ -1,6 +1,6 @@
 ﻿using MusicDownloader;
 
-namespace ManualAudioProcessor;
+namespace MusicProcessor;
 
 public static class Program
 {

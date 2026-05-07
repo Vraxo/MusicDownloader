@@ -59,7 +59,11 @@ public static class CsvTrackReader
 
             _ = csv.Context.RegisterClassMap<TrackMap>();
 
-            var records = csv.GetRecords<Track>().Select(ProcessUrl).ToList();
+            // Filter out empty URLs immediately to prevent downstream errors
+            var records = csv.GetRecords<Track>()
+                .Select(ProcessUrl)
+                .Where(t => !string.IsNullOrWhiteSpace(t.Url))
+                .ToList();
 
             return records;
         }
@@ -72,11 +76,10 @@ public static class CsvTrackReader
 
     private static Track ProcessUrl(Track track)
     {
-        return string.IsNullOrWhiteSpace(track.Url) || track.Url.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+        return string.IsNullOrWhiteSpace(track.Url)
             ? track
-            : (track with
-            {
-                Url = $"https://www.youtube.com/watch?v={track.Url.Trim()}"
-            });
+            : track.Url.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+            ? track
+            : track with { Url = $"https://www.youtube.com/watch?v={track.Url.Trim()}" };
     }
 }
