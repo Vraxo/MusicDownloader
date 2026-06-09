@@ -7,12 +7,12 @@ outputFilePath: coalesce.txt
 # List of source directories to scan for files.
 sourceDirectoryPaths:
   - MusicDownloader
-  - MusicProcessor
   - PlaylistGenerator
+  - MusicProcessor
 
 # (Whitelist) To process ONLY specific file types, add their extensions here (e.g., ".cs", ".py").
 # If this list is empty, Coalesce processes ALL files not matched by other exclusion rules.
-includeExtensions: 
+includeExtensions:
   - .cs
   - .csproj
   - .sln

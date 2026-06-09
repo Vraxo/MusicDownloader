@@ -1,13 +1,14 @@
+using MusicDownloader.Infrastructure;
 using Tomlyn;
 using Tomlyn.Model;
 
-namespace MusicDownloader;
+namespace MusicDownloader.Common;
 
 public static class TomlTrackReader
 {
     public static List<Track> ReadAllTracks()
     {
-        string tomlDir = SettingsManager.Current.CsvDir; // Reusing CsvDir setting for TOML files
+        string tomlDir = SettingsManager.Current.CsvDir;
 
         if (!Directory.Exists(tomlDir))
         {
@@ -42,40 +43,21 @@ public static class TomlTrackReader
             string content = File.ReadAllText(filePath);
             TomlTable toml = Toml.ToModel(content);
 
-            // Try to find track arrays - support multiple possible names
-            string[] possibleArrayNames = ["track", "song", "tracks", "songs"];
-            TomlTableArray? trackTables = null;
-            string foundName = "";
+            string[] possibleNames = ["track", "song", "tracks", "songs"];
+            string? foundName = possibleNames.FirstOrDefault(toml.ContainsKey);
 
-            foreach (string name in possibleArrayNames)
-            {
-                if (toml.ContainsKey(name) && toml[name] is TomlTableArray array)
-                {
-                    trackTables = array;
-                    foundName = name;
-                    break;
-                }
-            }
-
-            if (trackTables is null)
+            if (foundName is null || toml[foundName] is not TomlTableArray trackTables)
             {
                 Log.Warning($"No track/song array found in {Path.GetFileName(filePath)}. Expected [[track]], [[song]], [[tracks]], or [[songs]]");
                 return [];
             }
 
             Log.Info($"Found {trackTables.Count} entries in '{foundName}' array in {Path.GetFileName(filePath)}");
-            List<Track> tracks = [];
 
-            foreach (TomlTable trackTable in trackTables)
-            {
-                Track track = ParseTrack(trackTable);
-                if (!string.IsNullOrWhiteSpace(track.Url))
-                {
-                    tracks.Add(track);
-                }
-            }
-
-            return tracks;
+            return trackTables
+                .Select(ParseTrack)
+                .Where(t => !string.IsNullOrWhiteSpace(t.Url))
+                .ToList();
         }
         catch (Exception ex)
         {
@@ -87,16 +69,12 @@ public static class TomlTrackReader
     private static Track ParseTrack(TomlTable table)
     {
         string url = table.GetValueOrDefault<string>("url") ?? string.Empty;
-        
-        // Convert YouTube ID to full URL if needed
+
         if (!string.IsNullOrWhiteSpace(url) && !url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
         {
             url = $"https://www.youtube.com/watch?v={url.Trim()}";
         }
 
-        // Parse tags - support both TOML array and comma-separated string
-        IReadOnlyList<string> tags = ParseTags(table);
-        
         return new Track
         {
             Title = table.GetValueOrDefault<string>("title") ?? string.Empty,
@@ -108,41 +86,30 @@ public static class TomlTrackReader
             Loop = table.GetValueOrDefault<string>("loop") ?? "1",
             TrackNumber = table.GetValueOrDefault<string>("tracknumber") ?? string.Empty,
             DiscNumber = table.GetValueOrDefault<string>("discnumber") ?? string.Empty,
-            Tags = tags
+            Tags = ParseTags(table)
         };
     }
 
     private static IReadOnlyList<string> ParseTags(TomlTable table)
     {
-        // Try to get tags as TOML array first
-        if (table.ContainsKey("tags") && table["tags"] is TomlArray tagArray)
+        if (table.TryGetValue("tags", out object? tagsObj) && tagsObj is TomlArray tagArray)
         {
-            List<string> tags = [];
-            foreach (var item in tagArray)
-            {
-                if (item is string tag && !string.IsNullOrWhiteSpace(tag))
-                {
-                    tags.Add(tag.Trim());
-                }
-            }
-            return tags;
-        }
-        
-        // Fallback to comma-separated string
-        string? tagsString = table.GetValueOrDefault<string>("tags");
-        if (string.IsNullOrWhiteSpace(tagsString))
-        {
-            return [];
+            return tagArray
+                .OfType<string>()
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .Select(t => t.Trim())
+                .ToList();
         }
 
-        return tagsString.Split(',')
-            .Select(tag => tag.Trim())
-            .Where(tag => !string.IsNullOrEmpty(tag))
-            .ToList();
+        string tagsString = table.GetValueOrDefault<string>("tags") ?? string.Empty;
+
+        return string.IsNullOrWhiteSpace(tagsString)
+            ? []
+            : tagsString.Split(',').Select(tag => tag.Trim()).Where(tag => !string.IsNullOrEmpty(tag)).ToList();
     }
 
     private static T? GetValueOrDefault<T>(this TomlTable table, string key) where T : class
     {
-        return table.ContainsKey(key) ? table[key] as T : null;
+        return table.TryGetValue(key, out object? value) ? value as T : null;
     }
 }

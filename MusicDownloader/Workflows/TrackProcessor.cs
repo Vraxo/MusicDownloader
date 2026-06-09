@@ -1,6 +1,9 @@
-﻿using System.ComponentModel;
+﻿using MusicDownloader.Commands;
+using MusicDownloader.Common;
+using MusicDownloader.Infrastructure;
+using System.ComponentModel;
 
-namespace MusicDownloader;
+namespace MusicDownloader.Workflows;
 
 public class TrackProcessor
 {

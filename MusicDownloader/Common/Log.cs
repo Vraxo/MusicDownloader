@@ -1,4 +1,4 @@
-﻿namespace MusicDownloader;
+﻿namespace MusicDownloader.Common;
 
 public class Log
 {

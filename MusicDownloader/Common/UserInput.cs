@@ -1,6 +1,4 @@
-﻿using MusicDownloader;
-
-namespace MusicProcessor;
+﻿namespace MusicDownloader.Common;
 
 public static class UserInput
 {
@@ -23,7 +21,7 @@ public static class UserInput
         }
 
         Log.Action("Please select a file to process:");
-       
+
         for (int i = 0; i < files.Count; i++)
         {
             Console.WriteLine($"  {i + 1}: {Path.GetFileName(files[i])}");
@@ -34,9 +32,9 @@ public static class UserInput
         while (true)
         {
             Log.Action("Enter the number of the file:");
-            
+
             string? input = Console.ReadLine()?.Trim();
-            
+
             if (int.TryParse(input, out int choice) && choice >= 1 && choice <= files.Count)
             {
                 return files[choice - 1];

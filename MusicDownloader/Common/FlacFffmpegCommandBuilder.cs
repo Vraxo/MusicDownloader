@@ -1,7 +1,7 @@
-﻿using MusicDownloader;
+﻿using MusicDownloader.Infrastructure;
 using System.Globalization;
 
-namespace MusicProcessor;
+namespace MusicDownloader.Common;
 
 public class FlacFfmpegCommandBuilder
 {
@@ -26,18 +26,8 @@ public class FlacFfmpegCommandBuilder
         string filterOpts = BuildFilterOptions();
 
         return !string.IsNullOrEmpty(filterOpts)
-            ? $"-y {trimOpts} " +
-                   $"-i \"{_inputFile}\" {filterOpts} " +
-                   "-map 0 " +
-                   "-map_metadata -1 " +
-                   "-c:a flac " +
-                   $"\"{_outputFile}\""
-            : $"-y {trimOpts} " +
-               $"-i \"{_inputFile}\" " +
-               "-map 0 " +
-               "-map_metadata -1 " +
-               "-c copy " +
-               $"\"{_outputFile}\"";
+            ? $"-y {trimOpts} -i \"{_inputFile}\" {filterOpts} -map 0 -map_metadata -1 -c:a flac \"{_outputFile}\""
+            : $"-y {trimOpts} -i \"{_inputFile}\" -map 0 -map_metadata -1 -c copy \"{_outputFile}\"";
     }
 
     private string BuildTrimOptions()
@@ -75,10 +65,8 @@ public class FlacFfmpegCommandBuilder
             string tempoFormatted = tempoMultiplier.ToString("0.000", CultureInfo.InvariantCulture);
             return $"-filter:a \"atempo={tempoFormatted}\"";
         }
-        else
-        {
-            int newSampleRate = (int)Math.Round(_sampleRate * tempoMultiplier);
-            return $"-filter:a \"asetrate={newSampleRate}\"";
-        }
+
+        int newSampleRate = (int)Math.Round(_sampleRate * tempoMultiplier);
+        return $"-filter:a \"asetrate={newSampleRate}\"";
     }
 }

@@ -1,10 +1,9 @@
-﻿namespace MusicDownloader;
+﻿namespace MusicDownloader.Infrastructure;
 
 public static class ExecutableFinder
 {
     public static string GetFullPath(string exeName, string configuredDir)
     {
-        // 1. Prioritize the configured directory if it's provided.
         if (!string.IsNullOrWhiteSpace(configuredDir))
         {
             string pathFromConfig = Path.Combine(configuredDir, exeName);
@@ -14,29 +13,26 @@ public static class ExecutableFinder
             }
         }
 
-        // 2. Search the system PATH environment variable.
         string? pathVar = Environment.GetEnvironmentVariable("PATH");
         if (pathVar != null)
         {
+            char[] invalidChars = Path.GetInvalidPathChars();
+
             foreach (string dir in pathVar.Split(Path.PathSeparator))
             {
-                try
+                if (string.IsNullOrWhiteSpace(dir) || dir.IndexOfAny(invalidChars) >= 0)
                 {
-                    string fullPath = Path.Combine(dir, exeName);
-                    if (File.Exists(fullPath))
-                    {
-                        return fullPath;
-                    }
+                    continue;
                 }
-                catch (ArgumentException)
+
+                string fullPath = Path.Combine(dir, exeName);
+                if (File.Exists(fullPath))
                 {
-                    // Ignore invalid path characters in the PATH variable.
+                    return fullPath;
                 }
             }
         }
 
-        // 3. Fall back to the simple exe name and let the OS try to find it.
-        // This will likely fail if the previous steps did, but it's the last resort.
         return exeName;
     }
 }

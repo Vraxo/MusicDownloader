@@ -1,4 +1,4 @@
-﻿namespace MusicDownloader;
+﻿namespace MusicDownloader.Infrastructure;
 
 public class Settings
 {

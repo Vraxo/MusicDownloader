@@ -3,6 +3,4 @@
     <File Path=".editorconfig" />
   </Folder>
   <Project Path="MusicDownloader/MusicDownloader.csproj" />
-  <Project Path="MusicProcessor/MusicProcessor.csproj" />
-  <Project Path="PlaylistGenerator/PlaylistGenerator.csproj" />
 </Solution>

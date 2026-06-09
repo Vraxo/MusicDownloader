@@ -1,18 +1,31 @@
+using MusicDownloader.Common;
+using MusicDownloader.Infrastructure;
+using MusicDownloader.Workflows;
+
 namespace MusicDownloader;
 
 internal class Program
 {
-    private static async Task Main()
+    private static async Task Main(string[] args)
     {
         try
         {
-            _ = Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
+            Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
 
-            // Diagnostic check removed
-
-            Log.Info("Starting processing...");
-            await ProcessTracksFromCsvAsync();
-            Log.Success("All downloads and processing finished.");
+            if (args.Any(a => a.Equals("playlist", StringComparison.OrdinalIgnoreCase)))
+            {
+                PlaylistWriter.GeneratePlaylists();
+            }
+            else if (args.Any(a => a.Equals("process", StringComparison.OrdinalIgnoreCase)))
+            {
+                ManualProcessor.Run();
+            }
+            else
+            {
+                Log.Info("Starting download processing... (use 'playlist' or 'process' arguments for other tools)");
+                await ProcessTracksFromCsvAsync();
+                Log.Success("All downloads and processing finished.");
+            }
         }
         catch (Exception ex)
         {
@@ -21,7 +34,7 @@ internal class Program
 
         Console.WriteLine();
         Log.Info("Press any key to exit...");
-        _ = Console.ReadKey();
+        Console.ReadKey();
     }
 
     private static async Task ProcessTracksFromCsvAsync()
@@ -32,10 +45,9 @@ internal class Program
             return;
         }
 
-        // Add a blank line for better readability
         Console.WriteLine();
 
-        foreach (var track in allTracks)
+        foreach (Track track in allTracks)
         {
             bool downloadAttempted = false;
             try
