@@ -9,13 +9,21 @@ public static class AudioProber
     public static int GetSampleRate(string inputFile)
     {
         return RunProbe(inputFile, "stream=sample_rate", (output) =>
-            int.TryParse(output, out int val) ? val : -1);
+        {
+            return int.TryParse(output, out int val)
+                ? val
+                : -1;
+        });
     }
 
     public static double GetDuration(string inputFile)
     {
         return RunProbe(inputFile, "format=duration", (output) =>
-            double.TryParse(output, NumberStyles.Any, CultureInfo.InvariantCulture, out double val) ? val : -1.0);
+        {
+            return double.TryParse(output, NumberStyles.Any, CultureInfo.InvariantCulture, out double val)
+            ? val
+            : -1.0;
+        });
     }
 
     private static T RunProbe<T>(string inputFile, string entries, Func<string, T> parser)
@@ -42,13 +50,24 @@ public static class AudioProber
                 }
             };
 
-            proc.OutputDataReceived += (_, e) => { if (e.Data is not null) { _ = outputBuilder.Append(e.Data); } };
-            _ = proc.Start();
+            proc.OutputDataReceived += (_, e) =>
+            {
+                if (e.Data is null)
+                {
+                    return;
+                }
+
+                _ = outputBuilder.Append(e.Data);
+            };
+
+            proc.Start();
             proc.BeginOutputReadLine();
             proc.BeginErrorReadLine(); // Consume stderr to prevent blocking
             proc.WaitForExit();
 
-            return proc.ExitCode != 0 ? parser("") : parser(outputBuilder.ToString().Trim());
+            return proc.ExitCode != 0
+                ? parser("")
+                : parser(outputBuilder.ToString().Trim());
         }
         catch
         {

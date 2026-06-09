@@ -6,13 +6,14 @@ public static class SettingsManager
 {
     private const string SettingsDir = "Data";
     private const string SettingsFile = "Settings.json";
+
     private static readonly string SettingsPath = Path.Combine(SettingsDir, SettingsFile);
 
     public static Settings Current { get; private set; } = new();
 
     public static void LoadOrCreate()
     {
-        _ = Directory.CreateDirectory(SettingsDir);
+        Directory.CreateDirectory(SettingsDir);
 
         if (File.Exists(SettingsPath))
         {
@@ -41,7 +42,7 @@ public static class SettingsManager
     {
         Log.Info($"Settings file not found. Creating a new one at '{SettingsPath}'");
 
-        Current = new Settings
+        Current = new()
         {
             CsvDir = @"E:\Parsa Stuff\Documents\Music Collections",
             BaseDataDir = @"E:\Parsa Stuff\Audio\Music",
@@ -65,7 +66,11 @@ public static class SettingsManager
     {
         try
         {
-            var options = new JsonSerializerOptions { WriteIndented = true };
+            JsonSerializerOptions options = new()
+            {
+                WriteIndented = true
+            };
+
             string json = JsonSerializer.Serialize(Current, options);
             File.WriteAllText(SettingsPath, json);
         }
