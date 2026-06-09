@@ -26,11 +26,14 @@ internal class Program
 
     private static async Task ProcessTracksFromCsvAsync()
     {
-        List<Track> allTracks = CsvTrackReader.ReadAllTracks();
+        List<Track> allTracks = TomlTrackReader.ReadAllTracks();
         if (allTracks.Count == 0)
         {
             return;
         }
+
+        // Add a blank line for better readability
+        Console.WriteLine();
 
         foreach (var track in allTracks)
         {

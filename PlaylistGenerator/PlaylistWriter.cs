@@ -7,7 +7,7 @@ public static class PlaylistWriter
 {
     public static void GeneratePlaylists()
     {
-        List<Track> allTracks = CsvTrackReader.ReadAllTracks();
+        List<Track> allTracks = TomlTrackReader.ReadAllTracks();
 
         if (allTracks.Count == 0)
         {
