@@ -1,4 +1,4 @@
-﻿using MusicDownloader;
+using MusicDownloader;
 
 namespace MusicProcessor;
 
@@ -6,9 +6,6 @@ public static class Program
 {
     public static void Main()
     {
-        // Ensure settings are loaded
-        SettingsManager.LoadOrCreate();
-
         Log.Info("--- Manual FLAC Audio Processor ---");
         Console.WriteLine();
 

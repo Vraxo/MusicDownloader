@@ -1,4 +1,4 @@
-﻿using MusicDownloader;
+using MusicDownloader;
 using System.Text;
 
 namespace PlaylistGenerator;
@@ -7,9 +7,6 @@ public static class PlaylistWriter
 {
     public static void GeneratePlaylists()
     {
-        // Ensure settings are loaded before reading tracks
-        SettingsManager.LoadOrCreate();
-
         List<Track> allTracks = CsvTrackReader.ReadAllTracks();
 
         if (allTracks.Count == 0)
@@ -86,7 +83,7 @@ public static class PlaylistWriter
         {
             string safeTagFileName = PathUtils.SafeFileName(tag);
             string playlistPath = Path.Combine(SettingsManager.Current.BaseDataDir, $"{safeTagFileName}.m3u");
-            _ = Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
+            Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
 
             File.WriteAllText(playlistPath, contentBuilder.ToString());
             Log.Success($"Successfully created playlist: {Path.GetFileName(playlistPath)} with {tracks.Count} songs.");

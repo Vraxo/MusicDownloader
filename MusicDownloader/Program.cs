@@ -1,4 +1,4 @@
-﻿namespace MusicDownloader;
+namespace MusicDownloader;
 
 internal class Program
 {
@@ -6,7 +6,6 @@ internal class Program
     {
         try
         {
-            SettingsManager.LoadOrCreate();
             _ = Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
 
             // Diagnostic check removed
