@@ -31,7 +31,18 @@ internal static class ManualProcessor
             tempo = parsedTempo;
         }
 
-        string range = UserInput.GetTrimRange();
+        string rangeInput = UserInput.GetTrimRange();
+        IReadOnlyList<string> range = [];
+
+        if (!string.IsNullOrWhiteSpace(rangeInput))
+        {
+            string[] parts = rangeInput.Split('-');
+            if (parts.Length == 2)
+            {
+                range = [parts[0].Trim(), parts[1].Trim()];
+            }
+        }
+
         string outputFile = ResolveOutputFile(inputFile);
 
         Log.Action("Processing audio...");
@@ -68,7 +79,7 @@ internal static class ManualProcessor
         return outputFile;
     }
 
-    private static void ExecuteProcessing(string inputFile, string outputFile, double? tempo, string range, int sampleRate)
+    private static void ExecuteProcessing(string inputFile, string outputFile, double? tempo, IReadOnlyList<string> range, int sampleRate)
     {
         FlacFfmpegCommandBuilder commandBuilder = new(inputFile, outputFile, tempo, range, sampleRate);
         string command = commandBuilder.Build();

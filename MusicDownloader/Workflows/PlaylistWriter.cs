@@ -61,7 +61,8 @@ internal static class PlaylistWriter
         Log.Action($"Generating playlist for tag: '{tag}'...");
 
         List<Track> sortedTracks = [.. tracks
-            .OrderBy(t => int.TryParse(t.TrackNumber, out int num) ? num : int.MaxValue)
+            .OrderBy(t => t.DiscNumber ?? 1)
+            .ThenBy(t => t.TrackNumber ?? int.MaxValue)
             .ThenBy(t => t.Title, StringComparer.OrdinalIgnoreCase)];
 
         StringBuilder contentBuilder = new();

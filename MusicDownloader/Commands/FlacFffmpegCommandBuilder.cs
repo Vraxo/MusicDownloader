@@ -1,5 +1,4 @@
-﻿using MusicDownloader.Common;
-using MusicDownloader.Infrastructure;
+﻿using MusicDownloader.Infrastructure;
 using System.Globalization;
 
 namespace MusicDownloader.Commands;
@@ -8,18 +7,19 @@ internal sealed class FlacFfmpegCommandBuilder(
     string inputFile,
     string outputFile,
     double? tempo,
-    string range,
+    IReadOnlyList<string> range,
     int sampleRate)
 {
     public string Build()
     {
         string trimOpts = BuildTrimOptions();
         string filterOpts = BuildFilterOptions();
+        string trimStr = string.IsNullOrEmpty(trimOpts) ? "" : $"{trimOpts} ";
 
         if (string.IsNullOrEmpty(filterOpts))
         {
             return
-                $"-y {trimOpts} " +
+                $"-y {trimStr}" +
                 $"-i \"{inputFile}\" " +
                 $"-map 0 " +
                 $"-map_metadata -1 " +
@@ -27,7 +27,7 @@ internal sealed class FlacFfmpegCommandBuilder(
         }
 
         return
-            $"-y {trimOpts} " +
+            $"-y {trimStr}" +
             $"-i \"{inputFile}\" {filterOpts} " +
             $"-map 0 " +
             $"-map_metadata -1 " +
@@ -36,9 +36,26 @@ internal sealed class FlacFfmpegCommandBuilder(
 
     private string BuildTrimOptions()
     {
-        return TrackParser.TryParseRange(range, out string start, out string end)
-            ? $"-ss {start} -to {end}"
-            : "";
+        if (range.Count != 2)
+        {
+            return "";
+        }
+
+        string start = range[0];
+        string end = range[1];
+
+        List<string> trimArgs = [];
+        if (!string.IsNullOrEmpty(start))
+        {
+            trimArgs.Add($"-ss {start}");
+        }
+
+        if (!string.IsNullOrEmpty(end))
+        {
+            trimArgs.Add($"-to {end}");
+        }
+
+        return string.Join(" ", trimArgs);
     }
 
     private string BuildFilterOptions()

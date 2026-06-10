@@ -21,8 +21,10 @@ internal sealed class FfmpegCommandBuilder
 
     public string Build()
     {
-        int loopCount = ParseLoopCount();
-        bool hasTrim = TrackParser.TryParseRange(_track.Range, out string start, out string end);
+        int loopCount = _track.Loop;
+        string start = _track.Range.Count == 2 ? _track.Range[0] : "";
+        string end = _track.Range.Count == 2 ? _track.Range[1] : "";
+        bool hasTrim = !string.IsNullOrEmpty(start) || !string.IsNullOrEmpty(end);
         string tempoFilter = BuildTempoFilterContent();
         bool hasFilter = !string.IsNullOrEmpty(tempoFilter) || loopCount > 1;
 
@@ -30,7 +32,18 @@ internal sealed class FfmpegCommandBuilder
 
         if (hasTrim && loopCount <= 1)
         {
-            args.Add($"-ss {start} -to {end}");
+            List<string> trimArgs = [];
+            if (!string.IsNullOrEmpty(start))
+            {
+                trimArgs.Add($"-ss {start}");
+            }
+
+            if (!string.IsNullOrEmpty(end))
+            {
+                trimArgs.Add($"-to {end}");
+            }
+
+            args.Add(string.Join(" ", trimArgs));
         }
 
         args.Add($"-i \"{_inputFile}\"");
@@ -45,7 +58,18 @@ internal sealed class FfmpegCommandBuilder
             List<string> filterList = [];
             if (hasTrim)
             {
-                filterList.Add($"atrim=start={start}:end={end}");
+                List<string> atrimList = [];
+                if (!string.IsNullOrEmpty(start))
+                {
+                    atrimList.Add($"start={start}");
+                }
+
+                if (!string.IsNullOrEmpty(end))
+                {
+                    atrimList.Add($"end={end}");
+                }
+
+                filterList.Add($"atrim={string.Join(":", atrimList)}");
                 filterList.Add("asetpts=PTS-STARTPTS");
             }
             filterList.Add($"aloop=loop={loopCount - 1}:size=2147483647");
@@ -87,11 +111,6 @@ internal sealed class FfmpegCommandBuilder
         return string.Join(" ", args);
     }
 
-    private int ParseLoopCount()
-    {
-        return int.TryParse(_track.Loop, out int val) && val > 0 ? val : 1;
-    }
-
     private IEnumerable<string> BuildMetadataArgs()
     {
         List<string> meta = [
@@ -100,14 +119,19 @@ internal sealed class FfmpegCommandBuilder
             $"-metadata album=\"{_track.Album}\""
         ];
 
-        if (!string.IsNullOrWhiteSpace(_track.TrackNumber))
+        if (_track.TrackNumber.HasValue)
         {
-            meta.Add($"-metadata track=\"{_track.TrackNumber}\"");
+            meta.Add($"-metadata track=\"{_track.TrackNumber.Value}\"");
         }
 
-        if (!string.IsNullOrWhiteSpace(_track.DiscNumber))
+        if (_track.DiscNumber.HasValue)
         {
-            meta.Add($"-metadata disc=\"{_track.DiscNumber}\"");
+            meta.Add($"-metadata disc=\"{_track.DiscNumber.Value}\"");
+        }
+
+        if (_track.Date.HasValue)
+        {
+            meta.Add($"-metadata date=\"{_track.Date.Value:yyyy-MM-dd}\"");
         }
 
         return meta;
