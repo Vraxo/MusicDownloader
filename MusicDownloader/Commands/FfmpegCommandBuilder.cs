@@ -134,6 +134,17 @@ internal sealed class FfmpegCommandBuilder
             meta.Add($"-metadata date=\"{_track.Date.Value:yyyy-MM-dd}\"");
         }
 
+        if (_track.Tags.Count > 0)
+        {
+            string tagsJoined = string.Join(", ", _track.Tags);
+            meta.Add($"-metadata genre=\"{tagsJoined}\"");
+        }
+
+        if (!string.IsNullOrWhiteSpace(_track.Source))
+        {
+            meta.Add($"-metadata comment=\"{_track.Source}\"");
+        }
+
         return meta;
     }
 

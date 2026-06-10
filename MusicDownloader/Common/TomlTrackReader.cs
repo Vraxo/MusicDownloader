@@ -15,7 +15,7 @@ internal static class TomlTrackReader
             return [];
         }
 
-        List<string> tomlFiles = Directory.EnumerateFiles(tomlDir, "*.toml").ToList();
+        List<string> tomlFiles = [.. Directory.EnumerateFiles(tomlDir, "*.toml")];
 
         if (tomlFiles.Count == 0)
         {

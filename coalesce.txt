@@ -383,7 +383,7 @@ internal sealed class YtDlpCommandBuilder
     {
         List<string> args = [
             "-f \"bestaudio[ext=m4a]/bestaudio\"",
-            $"\"{_track.Url}\""
+            $"\"{_track.Source}\""
         ];
 
         string ffmpegArgs = GetFfmpegArgs();
@@ -582,15 +582,15 @@ internal static class TomlTrackReader
 
             return [.. collection.Song.Select(track =>
             {
-                if (!string.IsNullOrWhiteSpace(track.Url) && !track.Url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                if (!string.IsNullOrWhiteSpace(track.Source) && !track.Source.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                 {
                     return track with
                     {
-                        Url = $"https://www.youtube.com/watch?v={track.Url.Trim()}"
+                        Source = $"https://www.youtube.com/watch?v={track.Source.Trim()}"
                     };
                 }
                 return track;
-            }).Where(t => !string.IsNullOrWhiteSpace(t.Url))];
+            }).Where(t => !string.IsNullOrWhiteSpace(t.Source))];
         }
         catch (Exception ex)
         {
@@ -618,7 +618,7 @@ internal sealed record Track
     public string Title { get; init; } = string.Empty;
     public DateTime? Date { get; init; } = null;
 
-    public string Url { get; init; } = string.Empty;
+    public string Source { get; init; } = string.Empty;
 
     public IReadOnlyList<string> Range { get; init; } = [];
     public double? Tempo { get; init; } = null;
