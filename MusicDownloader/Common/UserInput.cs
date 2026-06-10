@@ -1,6 +1,6 @@
 ﻿namespace MusicDownloader.Common;
 
-public static class UserInput
+internal static class UserInput
 {
     private const string DataDir = "Data";
 

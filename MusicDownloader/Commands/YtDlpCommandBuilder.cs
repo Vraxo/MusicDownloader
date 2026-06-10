@@ -3,7 +3,7 @@ using MusicDownloader.Infrastructure;
 
 namespace MusicDownloader.Commands;
 
-public class YtDlpCommandBuilder
+internal sealed class YtDlpCommandBuilder
 {
     private readonly Track _track;
     private readonly string _tempFileBase;

@@ -139,7 +139,10 @@ public sealed class FfmpegCommandBuilderTests
     public void Build_WithCoverFile_MapsAttachedPicture()
     {
         // Arrange
-        Track track = new() { Title = "Song With Art" };
+        Track track = new()
+        {
+            Title = "Song With Art"
+        };
         FfmpegCommandBuilder builder = new(track, "input.m4a", "output.m4a", "cover.jpg");
 
         // Act

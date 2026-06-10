@@ -4,7 +4,7 @@ using System.Text;
 
 namespace MusicDownloader.Workflows;
 
-public static class PlaylistWriter
+internal static class PlaylistWriter
 {
     public static void GeneratePlaylists()
     {

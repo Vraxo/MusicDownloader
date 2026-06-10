@@ -4,7 +4,7 @@ using System.Globalization;
 
 namespace MusicDownloader.Commands;
 
-public class FfmpegCommandBuilder
+internal sealed class FfmpegCommandBuilder
 {
     private readonly Track _track;
     private readonly string _inputFile;
@@ -115,10 +115,12 @@ public class FfmpegCommandBuilder
 
     private string BuildTempoFilterContent()
     {
-        if (!TrackParser.TryParseTempo(_track.Tempo, out double tempoMultiplier))
+        if (_track.Tempo is null or <= 0)
         {
             return "";
         }
+
+        double tempoMultiplier = _track.Tempo.Value / 100.0;
 
         if (SettingsManager.Current.PreservePitchWhenChangingTempo)
         {

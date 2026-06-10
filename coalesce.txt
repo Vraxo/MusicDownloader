@@ -536,7 +536,7 @@ public static class TomlTrackReader
         try
         {
             string content = File.ReadAllText(filePath);
-            TomlTable toml = Toml.ToModel(content);
+            TomlTable toml = TomlSerializer.Deserialize<TomlTable>(content);
 
             string[] possibleNames = ["track", "song", "tracks", "songs"];
             string? foundName = possibleNames.FirstOrDefault(toml.ContainsKey);
@@ -1083,7 +1083,7 @@ public static class SettingsManager
             if (File.Exists(SettingsFile))
             {
                 string content = File.ReadAllText(SettingsFile);
-                Settings? loaded = Toml.ToModel<Settings>(content);
+                Settings? loaded = TomlSerializer.Deserialize<Settings>(content);
                 if (loaded is not null)
                 {
                     Current = loaded;

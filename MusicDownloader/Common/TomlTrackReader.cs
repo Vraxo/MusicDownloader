@@ -1,10 +1,11 @@
 using MusicDownloader.Infrastructure;
+using System.Globalization;
 using Tomlyn;
 using Tomlyn.Model;
 
 namespace MusicDownloader.Common;
 
-public static class TomlTrackReader
+internal static class TomlTrackReader
 {
     public static List<Track> ReadAllTracks()
     {
@@ -25,12 +26,21 @@ public static class TomlTrackReader
         }
 
         List<Track> tracks = [];
+        int successfullyLoadedFiles = 0;
 
         foreach (string tomlFile in tomlFiles)
         {
-            Console.WriteLine();
-            Log.Action($"Reading collection: {Path.GetFileName(tomlFile)}");
-            tracks.AddRange(GetTracksFromSingleToml(tomlFile));
+            List<Track> fileTracks = GetTracksFromSingleToml(tomlFile).ToList();
+            if (fileTracks.Count > 0)
+            {
+                tracks.AddRange(fileTracks);
+                successfullyLoadedFiles++;
+            }
+        }
+
+        if (tracks.Count > 0)
+        {
+            Log.Success($"Successfully loaded {tracks.Count} tracks from {successfullyLoadedFiles} collections.");
         }
 
         return tracks;
@@ -41,7 +51,7 @@ public static class TomlTrackReader
         try
         {
             string content = File.ReadAllText(filePath);
-            TomlTable toml = Toml.ToModel(content);
+            TomlTable toml = TomlSerializer.Deserialize<TomlTable>(content);
 
             string[] possibleNames = ["track", "song", "tracks", "songs"];
             string? foundName = possibleNames.FirstOrDefault(toml.ContainsKey);
@@ -51,8 +61,6 @@ public static class TomlTrackReader
                 Log.Warning($"No track/song array found in {Path.GetFileName(filePath)}. Expected [[track]], [[song]], [[tracks]], or [[songs]]");
                 return [];
             }
-
-            Log.Info($"Found {trackTables.Count} entries in '{foundName}' array in {Path.GetFileName(filePath)}");
 
             return trackTables
                 .Select(ParseTrack)
@@ -82,12 +90,35 @@ public static class TomlTrackReader
             Album = table.GetValueOrDefault<string>("album") ?? string.Empty,
             Url = url,
             Range = table.GetValueOrDefault<string>("range") ?? string.Empty,
-            Tempo = table.GetValueOrDefault<string>("tempo") ?? string.Empty,
+            Tempo = ParseTempo(table),
             Loop = table.GetValueOrDefault<string>("loop") ?? "1",
             TrackNumber = table.GetValueOrDefault<string>("tracknumber") ?? string.Empty,
             DiscNumber = table.GetValueOrDefault<string>("discnumber") ?? string.Empty,
             Tags = ParseTags(table)
         };
+    }
+
+    private static double? ParseTempo(TomlTable table)
+    {
+        if (!table.TryGetValue("tempo", out object? val) || val is null)
+        {
+            return null;
+        }
+
+        if (val is double d)
+        {
+            return d;
+        }
+        if (val is long l)
+        {
+            return l;
+        }
+        if (val is string s && double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out double parsed))
+        {
+            return parsed;
+        }
+
+        return null;
     }
 
     private static IReadOnlyList<string> ParseTags(TomlTable table)

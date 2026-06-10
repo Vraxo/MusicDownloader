@@ -2,7 +2,7 @@
 
 namespace MusicDownloader.Infrastructure;
 
-public static class AudioProber
+internal static class AudioProber
 {
     public static int GetSampleRate(string inputFile)
     {

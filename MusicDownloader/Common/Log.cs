@@ -1,6 +1,6 @@
 ﻿namespace MusicDownloader.Common;
 
-public class Log
+internal sealed class Log
 {
     private const ConsoleColor InfoColor = ConsoleColor.Gray;
     private const ConsoleColor WarningColor = ConsoleColor.Yellow;

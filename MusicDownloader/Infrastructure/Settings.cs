@@ -1,16 +1,16 @@
 ﻿namespace MusicDownloader.Infrastructure;
 
-public class Settings
+internal class Settings
 {
     // Paths
-    public string CsvDir { get; set; } = string.Empty;
-    public string BaseDataDir { get; set; } = string.Empty;
-    public string CookieFile { get; set; } = string.Empty;
-    public string PlaylistCheckReportFile { get; set; } = string.Empty;
+    public string CsvDir { get; set; } = @"E:\Documents\Music Database";
+    public string BaseDataDir { get; set; } = @"E:\Audio\Music";
+    public string CookieFile { get; set; } = @"Data\Cookies.txt";
+    public string PlaylistCheckReportFile { get; set; } = @"Data\PlaylistReport.txt";
 
     // Executables
-    public string YtDlpDir { get; set; } = string.Empty;
-    public string FfmpegDir { get; set; } = string.Empty;
+    public string YtDlpDir { get; set; } = @"C:\Program Files\yt-dlp";
+    public string FfmpegDir { get; set; } = @"C:\Program Files\ffmpeg\bin";
     public string YtDlpExe { get; set; } = "yt-dlp.exe";
     public string FfmpegExe { get; set; } = "ffmpeg.exe";
 
@@ -24,5 +24,5 @@ public class Settings
 
     // Authentication
     // If set (e.g., "chrome", "firefox"), yt-dlp will grab cookies directly from the browser.
-    public string? CookiesBrowser { get; set; } = null;
+    public string? CookiesBrowser { get; set; } = "chrome";
 }

@@ -1,8 +1,6 @@
-﻿using System.Globalization;
+﻿namespace MusicDownloader.Common;
 
-namespace MusicDownloader.Common;
-
-public static class TrackParser
+internal static class TrackParser
 {
     public static bool TryParseRange(string range, out string start, out string end)
     {
@@ -20,22 +18,16 @@ public static class TrackParser
             return false;
         }
 
-        start = parts[0].Trim();
-        end = parts[1].Trim();
+        string tempStart = parts[0].Trim();
+        string tempEnd = parts[1].Trim();
 
-        return !string.IsNullOrEmpty(start) && !string.IsNullOrEmpty(end);
-    }
-
-    public static bool TryParseTempo(string tempo, out double multiplier)
-    {
-        multiplier = 1.0;
-
-        if (string.IsNullOrWhiteSpace(tempo) || !double.TryParse(tempo, NumberStyles.Any, CultureInfo.InvariantCulture, out double percent))
+        if (string.IsNullOrEmpty(tempStart) || string.IsNullOrEmpty(tempEnd))
         {
             return false;
         }
 
-        multiplier = percent / 100.0;
+        start = tempStart;
+        end = tempEnd;
         return true;
     }
 }

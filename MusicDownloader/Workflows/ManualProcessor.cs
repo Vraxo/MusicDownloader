@@ -1,10 +1,11 @@
 ﻿using MusicDownloader.Commands;
 using MusicDownloader.Common;
 using MusicDownloader.Infrastructure;
+using System.Globalization;
 
 namespace MusicDownloader.Workflows;
 
-public static class ManualProcessor
+internal static class ManualProcessor
 {
     public static void Run()
     {
@@ -12,44 +13,68 @@ public static class ManualProcessor
         Console.WriteLine();
 
         string? inputFile = UserInput.GetInputFilePath();
-
         if (inputFile is null)
         {
             return;
         }
 
+        int sampleRate = ProbeSampleRate(inputFile);
+        if (sampleRate <= 0)
+        {
+            return;
+        }
+
+        string tempoInput = UserInput.GetTempo();
+        double? tempo = null;
+        if (!string.IsNullOrWhiteSpace(tempoInput) && double.TryParse(tempoInput, NumberStyles.Any, CultureInfo.InvariantCulture, out double parsedTempo))
+        {
+            tempo = parsedTempo;
+        }
+
+        string range = UserInput.GetTrimRange();
+        string outputFile = ResolveOutputFile(inputFile);
+
+        Log.Action("Processing audio...");
+        ExecuteProcessing(inputFile, outputFile, tempo, range, sampleRate);
+    }
+
+    private static int ProbeSampleRate(string inputFile)
+    {
         Log.Info("Probing audio file for details...");
         int sampleRate = AudioProber.GetSampleRate(inputFile);
 
         if (sampleRate <= 0)
         {
             Log.Error("Could not determine audio sample rate. Aborting process.");
-            return;
+            return -1;
         }
 
         Log.Info($"Detected sample rate: {sampleRate} Hz");
         Console.WriteLine();
+        return sampleRate;
+    }
 
-        string tempo = UserInput.GetTempo();
-        string range = UserInput.GetTrimRange();
-
-        string outputFile = Path.Combine(
-            Path.GetDirectoryName(inputFile)!,
-            $"{Path.GetFileNameWithoutExtension(inputFile)}_processed.flac"
-        );
+    private static string ResolveOutputFile(string inputFile)
+    {
+        string directory = Path.GetDirectoryName(inputFile) ?? string.Empty;
+        string fileName = Path.GetFileNameWithoutExtension(inputFile);
+        string outputFile = Path.Combine(directory, $"{fileName}_processed.flac");
 
         if (File.Exists(outputFile))
         {
             Log.Warning($"Output file '{outputFile}' already exists and will be overwritten.");
         }
 
-        Log.Action("Processing audio...");
+        return outputFile;
+    }
 
+    private static void ExecuteProcessing(string inputFile, string outputFile, double? tempo, string range, int sampleRate)
+    {
         FlacFfmpegCommandBuilder commandBuilder = new(inputFile, outputFile, tempo, range, sampleRate);
         string command = commandBuilder.Build();
 
-        string ffmpegExe = SettingsManager.Current.FfmpegExe;
-        int exitCode = ProcessExecutor.Run(ffmpegExe, command);
+        string ffmpegPath = ExecutableFinder.GetFullPath(SettingsManager.Current.FfmpegExe, SettingsManager.Current.FfmpegDir);
+        int exitCode = ProcessExecutor.Run(ffmpegPath, command);
 
         Console.WriteLine();
         if (exitCode == 0)

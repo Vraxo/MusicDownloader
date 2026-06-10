@@ -3,7 +3,7 @@ using MusicDownloader.Infrastructure;
 
 namespace MusicDownloader.Commands;
 
-public static class FfmpegNetworkTester
+internal static class FfmpegNetworkTester
 {
     public static void Test()
     {

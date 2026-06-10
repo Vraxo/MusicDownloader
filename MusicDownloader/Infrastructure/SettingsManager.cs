@@ -3,7 +3,7 @@ using Tomlyn;
 
 namespace MusicDownloader.Infrastructure;
 
-public static class SettingsManager
+internal static class SettingsManager
 {
     private const string SettingsFile = "settings.toml";
 
@@ -11,32 +11,17 @@ public static class SettingsManager
 
     static SettingsManager()
     {
-        Current = new()
-        {
-            CsvDir = @"E:\Documents\Music Database",
-            BaseDataDir = @"E:\Parsa Stuff\Audio\Music",
-            CookieFile = @"Data\Cookies.txt",
-            PlaylistCheckReportFile = @"Data\PlaylistReport.txt",
-            YtDlpDir = @"C:\Program Files\yt-dlp",
-            FfmpegDir = @"C:\Program Files\ffmpeg\bin",
-            YtDlpExe = "yt-dlp.exe",
-            FfmpegExe = "ffmpeg.exe",
-            AudioFormat = "m4a",
-            AudioBitrateKbps = 320,
-            PreservePitchWhenChangingTempo = false,
-            DelayBetweenDownloadsMs = 2500,
-            CookiesBrowser = "chrome"
-        };
+        Settings settings = new();
 
         try
         {
             if (File.Exists(SettingsFile))
             {
                 string content = File.ReadAllText(SettingsFile);
-                Settings? loaded = Toml.ToModel<Settings>(content);
+                Settings? loaded = TomlSerializer.Deserialize<Settings?>(content);
                 if (loaded is not null)
                 {
-                    Current = loaded;
+                    settings = loaded;
                 }
             }
         }
@@ -44,5 +29,7 @@ public static class SettingsManager
         {
             Log.Warning($"Failed to load '{SettingsFile}'. Using default settings. Error: {ex.Message}");
         }
+
+        Current = settings;
     }
 }

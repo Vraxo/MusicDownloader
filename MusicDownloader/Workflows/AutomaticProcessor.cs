@@ -1,0 +1,108 @@
+﻿using MusicDownloader.Common;
+using MusicDownloader.Infrastructure;
+
+namespace MusicDownloader.Workflows;
+
+internal static class AutomaticProcessor
+{
+    public static async Task RunAsync()
+    {
+        List<Track> allTracks = TomlTrackReader.ReadAllTracks();
+        if (allTracks.Count == 0)
+        {
+            return;
+        }
+
+        Console.WriteLine();
+
+        (List<Track> pendingTracks, int alreadyDownloadedCount) = FilterPendingTracks(allTracks);
+
+        if (pendingTracks.Count == 0)
+        {
+            Log.Success($"All {allTracks.Count} tracks are already downloaded and up to date!");
+            return;
+        }
+
+        PrintPreFlightStats(allTracks.Count, alreadyDownloadedCount, pendingTracks.Count);
+
+        (int downloaded, int failed, int updatedCount) = await ProcessQueueAsync(pendingTracks, alreadyDownloadedCount);
+
+        Console.WriteLine();
+        Log.Success(
+            $"Processing finished: {downloaded} newly downloaded, {failed} failed. " +
+            $"({updatedCount} were already up to date)");
+    }
+
+    private static (List<Track> Pending, int UpToDate) FilterPendingTracks(IEnumerable<Track> tracks)
+    {
+        List<Track> pending = [];
+        int upToDate = 0;
+
+        foreach (Track track in tracks)
+        {
+            if (File.Exists(TrackProcessor.GetOutputFile(track)))
+            {
+                upToDate++;
+            }
+            else
+            {
+                pending.Add(track);
+            }
+        }
+
+        return (pending, upToDate);
+    }
+
+    private static void PrintPreFlightStats(int total, int upToDate, int pending)
+    {
+        Log.Info($"Database tracks: {total}");
+        Log.Info($"Up to date:      {upToDate}");
+        Log.Action($"Pending:         {pending}");
+        Console.WriteLine();
+    }
+
+    private static async Task<(int Downloaded, int Failed, int UpToDate)> ProcessQueueAsync(IReadOnlyList<Track> queue, int alreadyDownloadedCount)
+    {
+        int downloaded = 0;
+        int failed = 0;
+        int upToDate = alreadyDownloadedCount;
+        int total = queue.Count;
+
+        for (int i = 0; i < total; i++)
+        {
+            Track track = queue[i];
+            TrackProcessStatus status = TrackProcessStatus.Failed;
+
+            try
+            {
+                TrackProcessor trackProcessor = new(track, i + 1, total);
+                status = await trackProcessor.ProcessAsync();
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Processing failed for track '{track.Title}': {ex.Message}");
+            }
+
+            switch (status)
+            {
+                case TrackProcessStatus.Success:
+                    downloaded++;
+                    break;
+                case TrackProcessStatus.Failed:
+                    failed++;
+                    break;
+                case TrackProcessStatus.Skipped:
+                    upToDate++;
+                    break;
+            }
+
+            bool downloadAttempted = status != TrackProcessStatus.Skipped;
+            if (downloadAttempted && SettingsManager.Current.DelayBetweenDownloadsMs > 0)
+            {
+                await Task.Delay(SettingsManager.Current.DelayBetweenDownloadsMs);
+            }
+        }
+
+        return (downloaded, failed, upToDate);
+    }
+}

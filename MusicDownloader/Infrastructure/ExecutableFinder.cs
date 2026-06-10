@@ -1,6 +1,6 @@
 ﻿namespace MusicDownloader.Infrastructure;
 
-public static class ExecutableFinder
+internal static class ExecutableFinder
 {
     public static string GetFullPath(string exeName, string configuredDir)
     {

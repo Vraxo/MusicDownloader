@@ -1,6 +1,6 @@
 ﻿namespace MusicDownloader.Common;
 
-public static class PathUtils
+internal static class PathUtils
 {
     public static string SafeFileName(string name)
     {

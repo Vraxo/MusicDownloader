@@ -5,75 +5,90 @@ using System.ComponentModel;
 
 namespace MusicDownloader.Workflows;
 
-public class TrackProcessor
+internal class TrackProcessor
 {
     private readonly Track _track;
     private readonly string _albumDir;
+    private readonly int _index;
+    private readonly int _total;
 
-    public TrackProcessor(Track track)
+    public TrackProcessor(Track track, int index = 0, int total = 0)
     {
         _track = track;
         _albumDir = Path.Combine(SettingsManager.Current.BaseDataDir, PathUtils.SafeFileName(_track.Album));
+        _index = index;
+        _total = total;
     }
 
-    public async Task<bool> ProcessAsync()
+    public static string GetOutputFile(Track track)
+    {
+        string albumDir = Path.Combine(SettingsManager.Current.BaseDataDir, PathUtils.SafeFileName(track.Album));
+        string finalFormat = SettingsManager.Current.AudioFormat;
+        return Path.Combine(albumDir, PathUtils.SafeFileName(track.Title) + $".{finalFormat}");
+    }
+
+    public async Task<TrackProcessStatus> ProcessAsync()
     {
         _ = Directory.CreateDirectory(_albumDir);
 
-        string finalFormat = SettingsManager.Current.AudioFormat;
-        string outputFile = Path.Combine(_albumDir, PathUtils.SafeFileName(_track.Title) + $".{finalFormat}");
+        string outputFile = GetOutputFile(_track);
 
         if (File.Exists(outputFile))
         {
-            return false;
+            return TrackProcessStatus.Skipped;
         }
 
         string tempFileBase = Path.Combine(_albumDir, "temp");
-        string finalTempOut = Path.Combine(_albumDir, "out." + finalFormat);
+        string finalTempOut = Path.Combine(_albumDir, "out." + SettingsManager.Current.AudioFormat);
 
         try
         {
             // 1. Download Full Audio + Thumbnail.
             if (!await RunFullDownloadAsync(tempFileBase))
             {
-                return true;
+                return TrackProcessStatus.Failed;
             }
 
             // 2. Find the downloaded audio file (e.g., temp.m4a).
             string? downloadedAudio = FindDownloadedFile(tempFileBase);
             if (downloadedAudio is null)
             {
-                Log.Error("Download reported success, but no audio file was found.");
-                return true;
+                Log.Error($"{GetLogPrefix()}Download reported success, but no audio file was found.");
+                return TrackProcessStatus.Failed;
             }
 
             // 3. Find the downloaded cover art (e.g., temp.webp, temp.jpg).
             string? downloadedCover = FindCoverFile(tempFileBase);
             if (downloadedCover is not null)
             {
-                Log.Info($"Found cover art: {Path.GetFileName(downloadedCover)}");
+                Log.Info($"{GetLogPrefix()}Found cover art: {Path.GetFileName(downloadedCover)}");
             }
 
             // 4. Process Audio (Trimming, Loop, Tempo, Embedding Cover).
             if (!await ProcessAudioAsync(_track, downloadedAudio, downloadedCover, finalTempOut))
             {
-                return true;
+                return TrackProcessStatus.Failed;
             }
 
             File.Move(finalTempOut, outputFile, true);
-            Log.Success($"Done: {_track.Title}");
+            Log.Success($"{GetLogPrefix()}Done: {_track.Title}");
+            return TrackProcessStatus.Success;
         }
         catch (Exception ex)
         {
-            Log.Error($"Failed processing '{_track.Title}': {ex.Message}");
+            Log.Error($"{GetLogPrefix()}Failed processing '{_track.Title}': {ex.Message}");
+            return TrackProcessStatus.Failed;
         }
         finally
         {
             CleanupTempFiles();
             Console.WriteLine();
         }
+    }
 
-        return true;
+    private string GetLogPrefix()
+    {
+        return _total > 0 ? $"[{_index}/{_total}] " : string.Empty;
     }
 
     private static string? FindDownloadedFile(string baseName)
@@ -107,7 +122,7 @@ public class TrackProcessor
 
     private async Task<bool> RunFullDownloadAsync(string tempFileBase)
     {
-        Log.Action($"Downloading: {_track.Title}");
+        Log.Action($"{GetLogPrefix()}Downloading: {_track.Title}");
 
         string command = new YtDlpCommandBuilder(_track, tempFileBase).Build();
         string ytDlpPath = ExecutableFinder.GetFullPath(SettingsManager.Current.YtDlpExe, SettingsManager.Current.YtDlpDir);
@@ -118,7 +133,7 @@ public class TrackProcessor
 
             if (exitCode != 0)
             {
-                Log.Error($"Download failed for {_track.Title}.");
+                Log.Error($"{GetLogPrefix()}Download failed for {_track.Title}.");
                 return false;
             }
 
@@ -126,14 +141,14 @@ public class TrackProcessor
         }
         catch (Win32Exception)
         {
-            Log.Error($"Could not find '{SettingsManager.Current.YtDlpExe}'.");
+            Log.Error($"{GetLogPrefix()}Could not find '{SettingsManager.Current.YtDlpExe}'.");
             return false;
         }
     }
 
     private async Task<bool> ProcessAudioAsync(Track track, string inputFile, string? coverFile, string outputFile)
     {
-        Log.Action($"Processing: {track.Title}");
+        Log.Action($"{GetLogPrefix()}Processing: {track.Title}");
 
         // Pass the coverFile to the builder so it can be embedded as an attached picture.
         string command = new FfmpegCommandBuilder(track, inputFile, outputFile, coverFile).Build();
@@ -145,13 +160,13 @@ public class TrackProcessor
 
             if (exitCode != 0)
             {
-                Log.Error($"ffmpeg processing failed for {track.Title}.");
+                Log.Error($"{GetLogPrefix()}ffmpeg processing failed for {track.Title}.");
                 return false;
             }
         }
         catch (Win32Exception)
         {
-            Log.Error($"Could not find '{SettingsManager.Current.FfmpegExe}'.");
+            Log.Error($"{GetLogPrefix()}Could not find '{SettingsManager.Current.FfmpegExe}'.");
             return false;
         }
 

@@ -5,7 +5,7 @@ using System.Text;
 
 namespace MusicDownloader.Infrastructure;
 
-public class ProcessExecutor
+internal class ProcessExecutor
 {
     public static int Run(string exe, string args, Action<string>? stdErrHandler = null)
     {
