@@ -2,5 +2,6 @@
   <Folder Name="/Solution Items/">
     <File Path=".editorconfig" />
   </Folder>
+  <Project Path="MusicDownloader.Tests/MusicDownloader.Tests.csproj" Id="6a439c31-8375-4342-a548-5ee779f0ccc0" />
   <Project Path="MusicDownloader/MusicDownloader.csproj" />
 </Solution>

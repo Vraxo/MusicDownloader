@@ -22,7 +22,7 @@ public class FfmpegCommandBuilder
     public string Build()
     {
         int loopCount = ParseLoopCount();
-        bool hasTrim = TryGetTrimTimes(out string start, out string end);
+        bool hasTrim = TrackParser.TryParseRange(_track.Range, out string start, out string end);
         string tempoFilter = BuildTempoFilterContent();
         bool hasFilter = !string.IsNullOrEmpty(tempoFilter) || loopCount > 1;
 
@@ -113,36 +113,12 @@ public class FfmpegCommandBuilder
         return meta;
     }
 
-    private bool TryGetTrimTimes(out string start, out string end)
-    {
-        start = "";
-        end = "";
-
-        if (string.IsNullOrWhiteSpace(_track.Range))
-        {
-            return false;
-        }
-
-        string[] parts = _track.Range.Split('-');
-        if (parts.Length != 2)
-        {
-            return false;
-        }
-
-        start = parts[0].Trim();
-        end = parts[1].Trim();
-
-        return !string.IsNullOrEmpty(start) && !string.IsNullOrEmpty(end);
-    }
-
     private string BuildTempoFilterContent()
     {
-        if (string.IsNullOrWhiteSpace(_track.Tempo) || !double.TryParse(_track.Tempo, NumberStyles.Any, CultureInfo.InvariantCulture, out double tempoPercent))
+        if (!TrackParser.TryParseTempo(_track.Tempo, out double tempoMultiplier))
         {
             return "";
         }
-
-        double tempoMultiplier = tempoPercent / 100.0;
 
         if (SettingsManager.Current.PreservePitchWhenChangingTempo)
         {

@@ -1,7 +1,8 @@
-﻿using MusicDownloader.Infrastructure;
+﻿using MusicDownloader.Common;
+using MusicDownloader.Infrastructure;
 using System.Globalization;
 
-namespace MusicDownloader.Common;
+namespace MusicDownloader.Commands;
 
 public class FlacFfmpegCommandBuilder
 {
@@ -32,33 +33,17 @@ public class FlacFfmpegCommandBuilder
 
     private string BuildTrimOptions()
     {
-        if (string.IsNullOrWhiteSpace(_range))
-        {
-            return "";
-        }
-
-        string[] parts = _range.Split('-');
-        if (parts.Length != 2)
-        {
-            return "";
-        }
-
-        string start = parts[0].Trim();
-        string end = parts[1].Trim();
-
-        return !string.IsNullOrEmpty(start) && !string.IsNullOrEmpty(end)
+        return TrackParser.TryParseRange(_range, out string start, out string end)
             ? $"-ss {start} -to {end}"
             : "";
     }
 
     private string BuildFilterOptions()
     {
-        if (string.IsNullOrWhiteSpace(_tempo) || !double.TryParse(_tempo, NumberStyles.Any, CultureInfo.InvariantCulture, out double tempoPercent))
+        if (!TrackParser.TryParseTempo(_tempo, out double tempoMultiplier))
         {
             return "";
         }
-
-        double tempoMultiplier = tempoPercent / 100.0;
 
         if (SettingsManager.Current.PreservePitchWhenChangingTempo)
         {
@@ -66,7 +51,7 @@ public class FlacFfmpegCommandBuilder
             return $"-filter:a \"atempo={tempoFormatted}\"";
         }
 
-        int newSampleRate = (int)Math.Round(_sampleRate * tempoMultiplier);
+        int newSampleRate = (int)double.Round(_sampleRate * tempoMultiplier);
         return $"-filter:a \"asetrate={newSampleRate}\"";
     }
 }

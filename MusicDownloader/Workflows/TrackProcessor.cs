@@ -41,7 +41,7 @@ public class TrackProcessor
 
             // 2. Find the downloaded audio file (e.g., temp.m4a).
             string? downloadedAudio = FindDownloadedFile(tempFileBase);
-            if (downloadedAudio == null)
+            if (downloadedAudio is null)
             {
                 Log.Error("Download reported success, but no audio file was found.");
                 return true;
@@ -49,7 +49,7 @@ public class TrackProcessor
 
             // 3. Find the downloaded cover art (e.g., temp.webp, temp.jpg).
             string? downloadedCover = FindCoverFile(tempFileBase);
-            if (downloadedCover != null)
+            if (downloadedCover is not null)
             {
                 Log.Info($"Found cover art: {Path.GetFileName(downloadedCover)}");
             }

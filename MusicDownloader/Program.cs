@@ -23,7 +23,7 @@ internal class Program
             else
             {
                 Log.Info("Starting download processing... (use 'playlist' or 'process' arguments for other tools)");
-                await ProcessTracksFromCsvAsync();
+                await ProcessTracksFromTomlAsync();
                 Log.Success("All downloads and processing finished.");
             }
         }
@@ -37,7 +37,7 @@ internal class Program
         Console.ReadKey();
     }
 
-    private static async Task ProcessTracksFromCsvAsync()
+    private static async Task ProcessTracksFromTomlAsync()
     {
         List<Track> allTracks = TomlTrackReader.ReadAllTracks();
         if (allTracks.Count == 0)

@@ -11,7 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Tomlyn" Version="0.17.0" />
+    <PackageReference Include="Tomlyn" Version="2.5.0" />
   </ItemGroup>
 
 </Project>
@@ -47,7 +47,7 @@ internal class Program
             else
             {
                 Log.Info("Starting download processing... (use 'playlist' or 'process' arguments for other tools)");
-                await ProcessTracksFromCsvAsync();
+                await ProcessTracksFromTomlAsync();
                 Log.Success("All downloads and processing finished.");
             }
         }
@@ -61,7 +61,7 @@ internal class Program
         Console.ReadKey();
     }
 
-    private static async Task ProcessTracksFromCsvAsync()
+    private static async Task ProcessTracksFromTomlAsync()
     {
         List<Track> allTracks = TomlTrackReader.ReadAllTracks();
         if (allTracks.Count == 0)
@@ -122,7 +122,7 @@ public class FfmpegCommandBuilder
     public string Build()
     {
         int loopCount = ParseLoopCount();
-        bool hasTrim = TryGetTrimTimes(out string start, out string end);
+        bool hasTrim = TrackParser.TryParseRange(_track.Range, out string start, out string end);
         string tempoFilter = BuildTempoFilterContent();
         bool hasFilter = !string.IsNullOrEmpty(tempoFilter) || loopCount > 1;
 
@@ -213,36 +213,12 @@ public class FfmpegCommandBuilder
         return meta;
     }
 
-    private bool TryGetTrimTimes(out string start, out string end)
-    {
-        start = "";
-        end = "";
-
-        if (string.IsNullOrWhiteSpace(_track.Range))
-        {
-            return false;
-        }
-
-        string[] parts = _track.Range.Split('-');
-        if (parts.Length != 2)
-        {
-            return false;
-        }
-
-        start = parts[0].Trim();
-        end = parts[1].Trim();
-
-        return !string.IsNullOrEmpty(start) && !string.IsNullOrEmpty(end);
-    }
-
     private string BuildTempoFilterContent()
     {
-        if (string.IsNullOrWhiteSpace(_track.Tempo) || !double.TryParse(_track.Tempo, NumberStyles.Any, CultureInfo.InvariantCulture, out double tempoPercent))
+        if (!TrackParser.TryParseTempo(_track.Tempo, out double tempoMultiplier))
         {
             return "";
         }
-
-        double tempoMultiplier = tempoPercent / 100.0;
 
         if (SettingsManager.Current.PreservePitchWhenChangingTempo)
         {
@@ -300,6 +276,70 @@ public static class FfmpegNetworkTester
         }
 
         Console.WriteLine();
+    }
+}
+```
+
+---
+
+### `MusicDownloader\Commands\FlacFffmpegCommandBuilder.cs`
+
+```csharp
+using MusicDownloader.Common;
+using MusicDownloader.Infrastructure;
+using System.Globalization;
+
+namespace MusicDownloader.Commands;
+
+public class FlacFfmpegCommandBuilder
+{
+    private readonly string _inputFile;
+    private readonly string _outputFile;
+    private readonly string _tempo;
+    private readonly string _range;
+    private readonly int _sampleRate;
+
+    public FlacFfmpegCommandBuilder(string inputFile, string outputFile, string tempo, string range, int sampleRate)
+    {
+        _inputFile = inputFile;
+        _outputFile = outputFile;
+        _tempo = tempo;
+        _range = range;
+        _sampleRate = sampleRate;
+    }
+
+    public string Build()
+    {
+        string trimOpts = BuildTrimOptions();
+        string filterOpts = BuildFilterOptions();
+
+        return !string.IsNullOrEmpty(filterOpts)
+            ? $"-y {trimOpts} -i \"{_inputFile}\" {filterOpts} -map 0 -map_metadata -1 -c:a flac \"{_outputFile}\""
+            : $"-y {trimOpts} -i \"{_inputFile}\" -map 0 -map_metadata -1 -c copy \"{_outputFile}\"";
+    }
+
+    private string BuildTrimOptions()
+    {
+        return TrackParser.TryParseRange(_range, out string start, out string end)
+            ? $"-ss {start} -to {end}"
+            : "";
+    }
+
+    private string BuildFilterOptions()
+    {
+        if (!TrackParser.TryParseTempo(_tempo, out double tempoMultiplier))
+        {
+            return "";
+        }
+
+        if (SettingsManager.Current.PreservePitchWhenChangingTempo)
+        {
+            string tempoFormatted = tempoMultiplier.ToString("0.000", CultureInfo.InvariantCulture);
+            return $"-filter:a \"atempo={tempoFormatted}\"";
+        }
+
+        int newSampleRate = (int)double.Round(_sampleRate * tempoMultiplier);
+        return $"-filter:a \"asetrate={newSampleRate}\"";
     }
 }
 ```
@@ -379,85 +419,6 @@ public class YtDlpCommandBuilder
         return !string.IsNullOrWhiteSpace(SettingsManager.Current.FfmpegDir)
             ? $"--ffmpeg-location \"{SettingsManager.Current.FfmpegDir}\""
             : "";
-    }
-}
-```
-
----
-
-### `MusicDownloader\Common\FlacFffmpegCommandBuilder.cs`
-
-```csharp
-using MusicDownloader.Infrastructure;
-using System.Globalization;
-
-namespace MusicDownloader.Common;
-
-public class FlacFfmpegCommandBuilder
-{
-    private readonly string _inputFile;
-    private readonly string _outputFile;
-    private readonly string _tempo;
-    private readonly string _range;
-    private readonly int _sampleRate;
-
-    public FlacFfmpegCommandBuilder(string inputFile, string outputFile, string tempo, string range, int sampleRate)
-    {
-        _inputFile = inputFile;
-        _outputFile = outputFile;
-        _tempo = tempo;
-        _range = range;
-        _sampleRate = sampleRate;
-    }
-
-    public string Build()
-    {
-        string trimOpts = BuildTrimOptions();
-        string filterOpts = BuildFilterOptions();
-
-        return !string.IsNullOrEmpty(filterOpts)
-            ? $"-y {trimOpts} -i \"{_inputFile}\" {filterOpts} -map 0 -map_metadata -1 -c:a flac \"{_outputFile}\""
-            : $"-y {trimOpts} -i \"{_inputFile}\" -map 0 -map_metadata -1 -c copy \"{_outputFile}\"";
-    }
-
-    private string BuildTrimOptions()
-    {
-        if (string.IsNullOrWhiteSpace(_range))
-        {
-            return "";
-        }
-
-        string[] parts = _range.Split('-');
-        if (parts.Length != 2)
-        {
-            return "";
-        }
-
-        string start = parts[0].Trim();
-        string end = parts[1].Trim();
-
-        return !string.IsNullOrEmpty(start) && !string.IsNullOrEmpty(end)
-            ? $"-ss {start} -to {end}"
-            : "";
-    }
-
-    private string BuildFilterOptions()
-    {
-        if (string.IsNullOrWhiteSpace(_tempo) || !double.TryParse(_tempo, NumberStyles.Any, CultureInfo.InvariantCulture, out double tempoPercent))
-        {
-            return "";
-        }
-
-        double tempoMultiplier = tempoPercent / 100.0;
-
-        if (SettingsManager.Current.PreservePitchWhenChangingTempo)
-        {
-            string tempoFormatted = tempoMultiplier.ToString("0.000", CultureInfo.InvariantCulture);
-            return $"-filter:a \"atempo={tempoFormatted}\"";
-        }
-
-        int newSampleRate = (int)Math.Round(_sampleRate * tempoMultiplier);
-        return $"-filter:a \"asetrate={newSampleRate}\"";
     }
 }
 ```
@@ -673,6 +634,54 @@ public record Track
 
 ---
 
+### `MusicDownloader\Common\TrackParser.cs`
+
+```csharp
+using System.Globalization;
+
+namespace MusicDownloader.Common;
+
+public static class TrackParser
+{
+    public static bool TryParseRange(string range, out string start, out string end)
+    {
+        start = string.Empty;
+        end = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(range))
+        {
+            return false;
+        }
+
+        string[] parts = range.Split('-');
+        if (parts.Length != 2)
+        {
+            return false;
+        }
+
+        start = parts[0].Trim();
+        end = parts[1].Trim();
+
+        return !string.IsNullOrEmpty(start) && !string.IsNullOrEmpty(end);
+    }
+
+    public static bool TryParseTempo(string tempo, out double multiplier)
+    {
+        multiplier = 1.0;
+
+        if (string.IsNullOrWhiteSpace(tempo) || !double.TryParse(tempo, NumberStyles.Any, CultureInfo.InvariantCulture, out double percent))
+        {
+            return false;
+        }
+
+        multiplier = percent / 100.0;
+        return true;
+    }
+}
+```
+
+---
+
 ### `MusicDownloader\Common\UserInput.cs`
 
 ```csharp
@@ -749,13 +758,22 @@ public static class AudioProber
 {
     public static int GetSampleRate(string inputFile)
     {
-        return RunProbe(inputFile, "stream=sample_rate", (output) => int.TryParse(output, out int val) ? val : -1);
+        return RunProbe(inputFile, "stream=sample_rate", (output) =>
+        {
+            return int.TryParse(output, out int val)
+                ? val
+                : -1;
+        });
     }
 
     public static double GetDuration(string inputFile)
     {
         return RunProbe(inputFile, "format=duration", (output) =>
-            double.TryParse(output, NumberStyles.Any, CultureInfo.InvariantCulture, out double val) ? val : -1.0);
+        {
+            return double.TryParse(output, NumberStyles.Any, CultureInfo.InvariantCulture, out double val)
+                ? val
+                : -1.0;
+        });
     }
 
     private static T RunProbe<T>(string inputFile, string entries, Func<string, T> parser)
@@ -763,7 +781,12 @@ public static class AudioProber
         string ffprobeExe = SettingsManager.Current.FfmpegExe.Replace("ffmpeg", "ffprobe");
         string ffprobePath = ExecutableFinder.GetFullPath(ffprobeExe, SettingsManager.Current.FfmpegDir);
 
-        string args = $"-v error -select_streams a:0 -show_entries {entries} -of default=noprint_wrappers=1:nokey=1 \"{inputFile}\"";
+        string args =
+            $"-v error " +
+            $"-select_streams " +
+            $"a:0 " +
+            $"-show_entries {entries} " +
+            $"-of default=noprint_wrappers=1:nokey=1 \"{inputFile}\"";
 
         try
         {
@@ -799,22 +822,24 @@ public static class ExecutableFinder
         }
 
         string? pathVar = Environment.GetEnvironmentVariable("PATH");
-        if (pathVar != null)
+        if (pathVar is null)
         {
-            char[] invalidChars = Path.GetInvalidPathChars();
+            return exeName;
+        }
 
-            foreach (string dir in pathVar.Split(Path.PathSeparator))
+        char[] invalidChars = Path.GetInvalidPathChars();
+
+        foreach (string dir in pathVar.Split(Path.PathSeparator))
+        {
+            if (string.IsNullOrWhiteSpace(dir) || dir.IndexOfAny(invalidChars) >= 0)
             {
-                if (string.IsNullOrWhiteSpace(dir) || dir.IndexOfAny(invalidChars) >= 0)
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                string fullPath = Path.Combine(dir, exeName);
-                if (File.Exists(fullPath))
-                {
-                    return fullPath;
-                }
+            string fullPath = Path.Combine(dir, exeName);
+            if (File.Exists(fullPath))
+            {
+                return fullPath;
             }
         }
 
@@ -895,7 +920,7 @@ public class ProcessExecutor
 
             proc.OutputDataReceived += (_, e) =>
             {
-                if (e.Data == null)
+                if (e.Data is null)
                 {
                     return;
                 }
@@ -904,7 +929,7 @@ public class ProcessExecutor
             };
             proc.ErrorDataReceived += (_, e) =>
             {
-                if (e.Data == null)
+                if (e.Data is null)
                 {
                     return;
                 }
@@ -1036,7 +1061,7 @@ public static class SettingsManager
 
     static SettingsManager()
     {
-        Current = new Settings
+        Current = new()
         {
             CsvDir = @"E:\Documents\Music Database",
             BaseDataDir = @"E:\Parsa Stuff\Audio\Music",
@@ -1078,6 +1103,7 @@ public static class SettingsManager
 ### `MusicDownloader\Workflows\ManualProcessor.cs`
 
 ```csharp
+using MusicDownloader.Commands;
 using MusicDownloader.Common;
 using MusicDownloader.Infrastructure;
 
@@ -1303,7 +1329,7 @@ public class TrackProcessor
 
             // 2. Find the downloaded audio file (e.g., temp.m4a).
             string? downloadedAudio = FindDownloadedFile(tempFileBase);
-            if (downloadedAudio == null)
+            if (downloadedAudio is null)
             {
                 Log.Error("Download reported success, but no audio file was found.");
                 return true;
@@ -1311,7 +1337,7 @@ public class TrackProcessor
 
             // 3. Find the downloaded cover art (e.g., temp.webp, temp.jpg).
             string? downloadedCover = FindCoverFile(tempFileBase);
-            if (downloadedCover != null)
+            if (downloadedCover is not null)
             {
                 Log.Info($"Found cover art: {Path.GetFileName(downloadedCover)}");
             }
@@ -1441,189 +1467,6 @@ public class TrackProcessor
         }
     }
 }
-```
-
----
-
-### `PlaylistGenerator\PlaylistGenerator.csproj`
-
-```xml
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net9.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\MusicDownloader\MusicDownloader.csproj" />
-  </ItemGroup>
-
-</Project>
-```
-
----
-
-### `PlaylistGenerator\PlaylistWriter.cs`
-
-```csharp
-using MusicDownloader;
-using System.Text;
-
-namespace PlaylistGenerator;
-
-public static class PlaylistWriter
-{
-    public static void GeneratePlaylists()
-    {
-        List<Track> allTracks = TomlTrackReader.ReadAllTracks();
-
-        if (allTracks.Count == 0)
-        {
-            Log.Info("No tracks found to process.");
-            return;
-        }
-
-        Console.WriteLine();
-
-        Dictionary<string, List<Track>> tracksByTag = GroupTracksByTag(allTracks);
-
-        if (tracksByTag.Count == 0)
-        {
-            Log.Info("No tags found on any tracks. No playlists will be generated.");
-            return;
-        }
-
-        Log.Info($"Found {allTracks.Count} tracks with {tracksByTag.Count} unique tags.");
-        Console.WriteLine();
-
-        foreach ((string tag, List<Track> tracks) in tracksByTag)
-        {
-            GenerateSinglePlaylist(tag, tracks);
-        }
-    }
-
-    private static Dictionary<string, List<Track>> GroupTracksByTag(IEnumerable<Track> tracks)
-    {
-        Dictionary<string, List<Track>> map = new(StringComparer.OrdinalIgnoreCase);
-
-        foreach (Track track in tracks)
-        {
-            foreach (string tag in track.Tags)
-            {
-                if (!map.TryGetValue(tag, out List<Track>? trackList))
-                {
-                    trackList = [];
-                    map[tag] = trackList;
-                }
-
-                trackList.Add(track);
-            }
-        }
-
-        return map;
-    }
-
-    private static void GenerateSinglePlaylist(string tag, IReadOnlyList<Track> tracks)
-    {
-        Log.Action($"Generating playlist for tag: '{tag}'...");
-
-        List<Track> sortedTracks = [.. tracks
-            .OrderBy(t => int.TryParse(t.TrackNumber, out int num) ? num : int.MaxValue)
-            .ThenBy(t => t.Title, StringComparer.OrdinalIgnoreCase)];
-
-        StringBuilder contentBuilder = new();
-        string format = SettingsManager.Current.AudioFormat;
-
-        for (int i = 0; i < sortedTracks.Count; i++)
-        {
-            Track track = sortedTracks[i];
-            string relativePath = GetRelativePath(format, track);
-
-            _ = contentBuilder.AppendLine(relativePath);
-
-            if ((i + 1) % 5 == 0 && (i + 1) < sortedTracks.Count)
-            {
-                _ = contentBuilder.AppendLine();
-            }
-        }
-
-        try
-        {
-            string safeTagFileName = PathUtils.SafeFileName(tag);
-            string playlistPath = Path.Combine(SettingsManager.Current.BaseDataDir, $"{safeTagFileName}.m3u");
-            Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
-
-            File.WriteAllText(playlistPath, contentBuilder.ToString());
-            Log.Success($"Successfully created playlist: {Path.GetFileName(playlistPath)} with {tracks.Count} songs.");
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"Failed to write playlist for tag '{tag}': {ex.Message}");
-        }
-    }
-
-    private static string GetRelativePath(string format, Track track)
-    {
-        return Path.Combine(
-            PathUtils.SafeFileName(track.Album),
-            $"{PathUtils.SafeFileName(track.Title)}.{format}");
-    }
-}
-```
-
----
-
-### `PlaylistGenerator\Program.cs`
-
-```csharp
-using MusicDownloader;
-
-namespace PlaylistGenerator;
-
-class Program
-{
-    static void Main()
-    {
-        try
-        {
-            Log.Info("Starting playlist generation...");
-            PlaylistWriter.GeneratePlaylists();
-            Log.Success("All playlists generated successfully.");
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"A fatal error occurred: {ex.Message}");
-        }
-
-        Console.WriteLine();
-        Log.Info("Press any key to exit...");
-        Console.ReadKey();
-    }
-}
-```
-
----
-
-### `MusicProcessor\MusicProcessor.csproj`
-
-```xml
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net9.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\MusicDownloader\MusicDownloader.csproj" />
-  </ItemGroup>
-
-</Project>
 ```
 
 ---

@@ -14,22 +14,24 @@ public static class ExecutableFinder
         }
 
         string? pathVar = Environment.GetEnvironmentVariable("PATH");
-        if (pathVar != null)
+        if (pathVar is null)
         {
-            char[] invalidChars = Path.GetInvalidPathChars();
+            return exeName;
+        }
 
-            foreach (string dir in pathVar.Split(Path.PathSeparator))
+        char[] invalidChars = Path.GetInvalidPathChars();
+
+        foreach (string dir in pathVar.Split(Path.PathSeparator))
+        {
+            if (string.IsNullOrWhiteSpace(dir) || dir.IndexOfAny(invalidChars) >= 0)
             {
-                if (string.IsNullOrWhiteSpace(dir) || dir.IndexOfAny(invalidChars) >= 0)
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                string fullPath = Path.Combine(dir, exeName);
-                if (File.Exists(fullPath))
-                {
-                    return fullPath;
-                }
+            string fullPath = Path.Combine(dir, exeName);
+            if (File.Exists(fullPath))
+            {
+                return fullPath;
             }
         }
 

@@ -11,7 +11,7 @@ public static class SettingsManager
 
     static SettingsManager()
     {
-        Current = new Settings
+        Current = new()
         {
             CsvDir = @"E:\Documents\Music Database",
             BaseDataDir = @"E:\Parsa Stuff\Audio\Music",

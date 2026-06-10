@@ -65,7 +65,7 @@ public class ProcessExecutor
 
             proc.OutputDataReceived += (_, e) =>
             {
-                if (e.Data == null)
+                if (e.Data is null)
                 {
                     return;
                 }
@@ -74,7 +74,7 @@ public class ProcessExecutor
             };
             proc.ErrorDataReceived += (_, e) =>
             {
-                if (e.Data == null)
+                if (e.Data is null)
                 {
                     return;
                 }

@@ -1,4 +1,5 @@
-﻿using MusicDownloader.Common;
+﻿using MusicDownloader.Commands;
+using MusicDownloader.Common;
 using MusicDownloader.Infrastructure;
 
 namespace MusicDownloader.Workflows;
