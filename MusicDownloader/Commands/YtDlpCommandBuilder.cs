@@ -14,59 +14,41 @@ internal sealed class YtDlpCommandBuilder
         _tempFileBase = tempFileBase;
     }
 
-    public string Build()
+    public ProcessArguments Build()
     {
         List<string> args = [
-            "-f \"bestaudio[ext=m4a]/bestaudio\"",
-            $"\"{_track.Source}\""
+            "-f", "bestaudio[ext=m4a]/bestaudio",
+            _track.Source,
+            "--write-thumbnail",
+            "--no-add-metadata",
+            "--downloader", "native",
+            "--retries", "20",
+            "--fragment-retries", "20",
+            "--http-chunk-size", "10M",
+            "--socket-timeout", "30",
+            "--no-mtime"
         ];
 
-        string ffmpegArgs = GetFfmpegArgs();
-        if (!string.IsNullOrEmpty(ffmpegArgs))
+        if (!string.IsNullOrWhiteSpace(SettingsManager.Current.FfmpegDir))
         {
-            args.Add(ffmpegArgs);
+            args.AddRange(["--ffmpeg-location", SettingsManager.Current.FfmpegDir]);
         }
 
-        args.Add("--write-thumbnail");
-        args.Add("--no-add-metadata");
-        args.Add("--downloader native");
-        args.Add("--retries 20");
-        args.Add("--fragment-retries 20");
-        args.Add("--http-chunk-size 10M");
-        args.Add("--socket-timeout 30");
-        args.Add("--no-mtime");
-
-        string cookieArgs = GetCookieArgs();
-        if (!string.IsNullOrEmpty(cookieArgs))
-        {
-            args.Add(cookieArgs);
-        }
-
-        args.Add($"-o \"{_tempFileBase}.%(ext)s\"");
-
-        return string.Join(" ", args);
-    }
-
-    private static string GetCookieArgs()
-    {
         if (!string.IsNullOrWhiteSpace(SettingsManager.Current.CookiesBrowser))
         {
-            return $"--cookies-from-browser {SettingsManager.Current.CookiesBrowser}";
+            args.AddRange(["--cookies-from-browser", SettingsManager.Current.CookiesBrowser]);
         }
-
-        string relativePath = SettingsManager.Current.CookieFile;
-        if (File.Exists(relativePath))
+        else
         {
-            return $"--cookies \"{Path.GetFullPath(relativePath)}\"";
+            string relativePath = SettingsManager.Current.CookieFile;
+            if (File.Exists(relativePath))
+            {
+                args.AddRange(["--cookies", Path.GetFullPath(relativePath)]);
+            }
         }
 
-        return "";
-    }
+        args.AddRange(["-o", $"{_tempFileBase}.%(ext)s"]);
 
-    private static string GetFfmpegArgs()
-    {
-        return !string.IsNullOrWhiteSpace(SettingsManager.Current.FfmpegDir)
-            ? $"--ffmpeg-location \"{SettingsManager.Current.FfmpegDir}\""
-            : "";
+        return args;
     }
 }

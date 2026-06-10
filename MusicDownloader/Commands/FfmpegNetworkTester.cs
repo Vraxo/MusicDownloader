@@ -10,7 +10,7 @@ internal static class FfmpegNetworkTester
         Log.Info("Running FFmpeg network connectivity test (HTTPS)...");
 
         string ffmpegExe = ExecutableFinder.GetFullPath(SettingsManager.Current.FfmpegExe, SettingsManager.Current.FfmpegDir);
-        string args = "-v error -i https://www.google.com -f null -";
+        string[] args = ["-v", "error", "-i", "https://www.google.com", "-f", "null", "-"];
 
         try
         {

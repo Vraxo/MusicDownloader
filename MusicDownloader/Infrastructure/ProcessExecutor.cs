@@ -7,7 +7,7 @@ namespace MusicDownloader.Infrastructure;
 
 internal class ProcessExecutor
 {
-    public static int Run(string exe, string args, Action<string>? stdErrHandler = null)
+    public static int Run(string exe, ProcessArguments args, Action<string>? stdErrHandler = null)
     {
         try
         {
@@ -54,7 +54,7 @@ internal class ProcessExecutor
         }
     }
 
-    public static ProcessResult RunAndCapture(string exe, string args)
+    public static ProcessResult RunAndCapture(string exe, ProcessArguments args)
     {
         try
         {
@@ -100,20 +100,26 @@ internal class ProcessExecutor
         }
     }
 
-    private static Process CreateProcess(string exe, string args)
+    private static Process CreateProcess(string exe, ProcessArguments args)
     {
-        return new Process
+        Process proc = new()
         {
             StartInfo = new()
             {
                 FileName = exe,
-                Arguments = args,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
             }
         };
+
+        foreach (string arg in args)
+        {
+            proc.StartInfo.ArgumentList.Add(arg);
+        }
+
+        return proc;
     }
 
     private static void HandleStdErr(string data)

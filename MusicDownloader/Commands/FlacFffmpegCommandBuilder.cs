@@ -10,35 +10,42 @@ internal sealed class FlacFfmpegCommandBuilder(
     IReadOnlyList<string> range,
     int sampleRate)
 {
-    public string Build()
+    public ProcessArguments Build()
     {
-        string trimOpts = BuildTrimOptions();
-        string filterOpts = BuildFilterOptions();
-        string trimStr = string.IsNullOrEmpty(trimOpts) ? "" : $"{trimOpts} ";
+        List<string> args = ["-y"];
 
-        if (string.IsNullOrEmpty(filterOpts))
+        args.AddRange(BuildTrimOptions());
+
+        args.AddRange(["-i", inputFile]);
+
+        args.AddRange(BuildFilterOptions());
+
+        args.AddRange(["-map", "0", "-map_metadata", "-1"]);
+
+        if (HasFilter())
         {
-            return
-                $"-y {trimStr}" +
-                $"-i \"{inputFile}\" " +
-                $"-map 0 " +
-                $"-map_metadata -1 " +
-                $"-c copy \"{outputFile}\"";
+            args.AddRange(["-c:a", "flac"]);
+        }
+        else
+        {
+            args.AddRange(["-c", "copy"]);
         }
 
-        return
-            $"-y {trimStr}" +
-            $"-i \"{inputFile}\" {filterOpts} " +
-            $"-map 0 " +
-            $"-map_metadata -1 " +
-            $"-c:a flac \"{outputFile}\"";
+        args.Add(outputFile);
+
+        return args;
     }
 
-    private string BuildTrimOptions()
+    private bool HasFilter()
+    {
+        return tempo is > 0;
+    }
+
+    private List<string> BuildTrimOptions()
     {
         if (range.Count != 2)
         {
-            return "";
+            return [];
         }
 
         string start = range[0];
@@ -47,22 +54,22 @@ internal sealed class FlacFfmpegCommandBuilder(
         List<string> trimArgs = [];
         if (!string.IsNullOrEmpty(start))
         {
-            trimArgs.Add($"-ss {start}");
+            trimArgs.AddRange(["-ss", start]);
         }
 
         if (!string.IsNullOrEmpty(end))
         {
-            trimArgs.Add($"-to {end}");
+            trimArgs.AddRange(["-to", end]);
         }
 
-        return string.Join(" ", trimArgs);
+        return trimArgs;
     }
 
-    private string BuildFilterOptions()
+    private List<string> BuildFilterOptions()
     {
         if (tempo is null or <= 0)
         {
-            return "";
+            return [];
         }
 
         double tempoMultiplier = tempo.Value / 100.0;
@@ -70,10 +77,10 @@ internal sealed class FlacFfmpegCommandBuilder(
         if (SettingsManager.Current.PreservePitchWhenChangingTempo)
         {
             string tempoFormatted = tempoMultiplier.ToString("0.000", CultureInfo.InvariantCulture);
-            return $"-filter:a \"atempo={tempoFormatted}\"";
+            return ["-filter:a", $"atempo={tempoFormatted}"];
         }
 
         int newSampleRate = (int)double.Round(sampleRate * tempoMultiplier);
-        return $"-filter:a \"asetrate={newSampleRate}\"";
+        return ["-filter:a", $"asetrate={newSampleRate}"];
     }
 }

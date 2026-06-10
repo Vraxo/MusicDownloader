@@ -19,7 +19,7 @@ internal sealed class FfmpegCommandBuilder
         _coverFile = coverFile;
     }
 
-    public string Build()
+    public ProcessArguments Build()
     {
         int loopCount = _track.Loop;
         string start = _track.Range.Count == 2 ? _track.Range[0] : "";
@@ -32,25 +32,22 @@ internal sealed class FfmpegCommandBuilder
 
         if (hasTrim && loopCount <= 1)
         {
-            List<string> trimArgs = [];
             if (!string.IsNullOrEmpty(start))
             {
-                trimArgs.Add($"-ss {start}");
+                args.AddRange(["-ss", start]);
             }
 
             if (!string.IsNullOrEmpty(end))
             {
-                trimArgs.Add($"-to {end}");
+                args.AddRange(["-to", end]);
             }
-
-            args.Add(string.Join(" ", trimArgs));
         }
 
-        args.Add($"-i \"{_inputFile}\"");
+        args.AddRange(["-i", _inputFile]);
 
         if (_coverFile is not null)
         {
-            args.Add($"-i \"{_coverFile}\"");
+            args.AddRange(["-i", _coverFile]);
         }
 
         if (loopCount > 1)
@@ -79,70 +76,84 @@ internal sealed class FfmpegCommandBuilder
             }
 
             string filterChain = string.Join(",", filterList);
-            args.Add($"-filter_complex \"[0:a]{filterChain}[outa]\"");
-            args.Add("-map \"[outa]\"");
+            args.AddRange(["-filter_complex", $"[0:a]{filterChain}[outa]", "-map", "[outa]"]);
         }
         else
         {
             if (!string.IsNullOrEmpty(tempoFilter))
             {
-                args.Add($"-filter:a \"{tempoFilter}\"");
+                args.AddRange(["-filter:a", tempoFilter]);
             }
-            args.Add("-map 0:a");
+            args.AddRange(["-map", "0:a"]);
         }
 
-        args.Add(_coverFile is not null ? "-map 1:0" : "-map 0:v?");
-
-        args.AddRange(BuildMetadataArgs());
-        args.Add("-map_metadata -1");
-
-        if (hasFilter)
+        if (_coverFile is not null)
         {
-            args.Add($"-c:a aac -b:a {SettingsManager.Current.AudioBitrateKbps}k");
+            args.AddRange(["-map", "1:0"]);
         }
         else
         {
-            args.Add("-c:a copy");
+            args.AddRange(["-map", "0:v?"]);
         }
 
-        args.Add(_coverFile is not null ? "-c:v mjpeg -disposition:v:0 attached_pic" : "-c:v copy");
-        args.Add($"\"{_outputFile}\"");
+        args.AddRange(BuildMetadataArgs());
+        args.AddRange(["-map_metadata", "-1"]);
 
-        return string.Join(" ", args);
+        if (hasFilter)
+        {
+            args.AddRange(["-c:a", "aac", "-b:a", $"{SettingsManager.Current.AudioBitrateKbps}k"]);
+        }
+        else
+        {
+            args.AddRange(["-c:a", "copy"]);
+        }
+
+        if (_coverFile is not null)
+        {
+            args.AddRange(["-c:v", "mjpeg", "-disposition:v:0", "attached_pic"]);
+        }
+        else
+        {
+            args.AddRange(["-c:v", "copy"]);
+        }
+
+        args.Add(_outputFile);
+
+        return args;
     }
 
-    private IEnumerable<string> BuildMetadataArgs()
+    private List<string> BuildMetadataArgs()
     {
-        List<string> meta = [
-            $"-metadata title=\"{_track.Title}\"",
-            $"-metadata artist=\"{_track.Artist}\"",
-            $"-metadata album=\"{_track.Album}\""
-        ];
+        List<string> meta = [];
+
+        meta.AddRange(["-metadata", $"title={_track.Title}"]);
+        meta.AddRange(["-metadata", $"artist={_track.Artist}"]);
+        meta.AddRange(["-metadata", $"album={_track.Album}"]);
 
         if (_track.TrackNumber.HasValue)
         {
-            meta.Add($"-metadata track=\"{_track.TrackNumber.Value}\"");
+            meta.AddRange(["-metadata", $"track={_track.TrackNumber.Value}"]);
         }
 
         if (_track.DiscNumber.HasValue)
         {
-            meta.Add($"-metadata disc=\"{_track.DiscNumber.Value}\"");
+            meta.AddRange(["-metadata", $"disc={_track.DiscNumber.Value}"]);
         }
 
         if (_track.Date.HasValue)
         {
-            meta.Add($"-metadata date=\"{_track.Date.Value:yyyy-MM-dd}\"");
+            meta.AddRange(["-metadata", $"date={_track.Date.Value:yyyy-MM-dd}"]);
         }
 
         if (_track.Tags.Count > 0)
         {
             string tagsJoined = string.Join(", ", _track.Tags);
-            meta.Add($"-metadata genre=\"{tagsJoined}\"");
+            meta.AddRange(["-metadata", $"genre={tagsJoined}"]);
         }
 
         if (!string.IsNullOrWhiteSpace(_track.Source))
         {
-            meta.Add($"-metadata comment=\"{_track.Source}\"");
+            meta.AddRange(["-metadata", $"comment={_track.Source}"]);
         }
 
         return meta;

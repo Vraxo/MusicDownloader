@@ -82,7 +82,7 @@ internal static class ManualProcessor
     private static void ExecuteProcessing(string inputFile, string outputFile, double? tempo, IReadOnlyList<string> range, int sampleRate)
     {
         FlacFfmpegCommandBuilder commandBuilder = new(inputFile, outputFile, tempo, range, sampleRate);
-        string command = commandBuilder.Build();
+        ProcessArguments command = commandBuilder.Build();
 
         string ffmpegPath = ExecutableFinder.GetFullPath(SettingsManager.Current.FfmpegExe, SettingsManager.Current.FfmpegDir);
         int exitCode = ProcessExecutor.Run(ffmpegPath, command);

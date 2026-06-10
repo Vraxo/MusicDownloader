@@ -29,12 +29,13 @@ internal static class AudioProber
         string ffprobeExe = SettingsManager.Current.FfmpegExe.Replace("ffmpeg", "ffprobe");
         string ffprobePath = ExecutableFinder.GetFullPath(ffprobeExe, SettingsManager.Current.FfmpegDir);
 
-        string args =
-            $"-v error " +
-            $"-select_streams " +
-            $"a:0 " +
-            $"-show_entries {entries} " +
-            $"-of default=noprint_wrappers=1:nokey=1 \"{inputFile}\"";
+        string[] args = [
+            "-v", "error",
+            "-select_streams", "a:0",
+            "-show_entries", entries,
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            inputFile
+        ];
 
         try
         {

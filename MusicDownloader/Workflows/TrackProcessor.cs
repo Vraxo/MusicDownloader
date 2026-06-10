@@ -43,13 +43,11 @@ internal class TrackProcessor
 
         try
         {
-            // 1. Download Full Audio + Thumbnail.
             if (!await RunFullDownloadAsync(tempFileBase))
             {
                 return TrackProcessStatus.Failed;
             }
 
-            // 2. Find the downloaded audio file (e.g., temp.m4a).
             string? downloadedAudio = FindDownloadedFile(tempFileBase);
             if (downloadedAudio is null)
             {
@@ -57,14 +55,12 @@ internal class TrackProcessor
                 return TrackProcessStatus.Failed;
             }
 
-            // 3. Find the downloaded cover art (e.g., temp.webp, temp.jpg).
             string? downloadedCover = FindCoverFile(tempFileBase);
             if (downloadedCover is not null)
             {
                 Log.Info($"{GetLogPrefix()}Found cover art: {Path.GetFileName(downloadedCover)}");
             }
 
-            // 4. Process Audio (Trimming, Loop, Tempo, Embedding Cover).
             if (!await ProcessAudioAsync(_track, downloadedAudio, downloadedCover, finalTempOut))
             {
                 return TrackProcessStatus.Failed;
@@ -94,14 +90,13 @@ internal class TrackProcessor
     private static string? FindDownloadedFile(string baseName)
     {
         string dir = Path.GetDirectoryName(baseName)!;
-        string fileName = Path.GetFileName(baseName); // "temp"
+        string fileName = Path.GetFileName(baseName);
 
         string[] candidates = Directory.GetFiles(dir, $"{fileName}.*");
 
         return candidates.FirstOrDefault(f =>
         {
             string ext = Path.GetExtension(f).ToLowerInvariant();
-            // Exclude common non-audio files
             return ext is not ".webp" and not ".jpg" and not ".png" and not ".json" and not ".part" and not ".ytdl";
         });
     }
@@ -109,11 +104,10 @@ internal class TrackProcessor
     private static string? FindCoverFile(string baseName)
     {
         string dir = Path.GetDirectoryName(baseName)!;
-        string fileName = Path.GetFileName(baseName); // "temp"
+        string fileName = Path.GetFileName(baseName);
 
         string[] candidates = Directory.GetFiles(dir, $"{fileName}.*");
 
-        // Prefer highest quality/common image formats
         return candidates.FirstOrDefault(f => f.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
             ?? candidates.FirstOrDefault(f => f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase))
             ?? candidates.FirstOrDefault(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
@@ -124,7 +118,7 @@ internal class TrackProcessor
     {
         Log.Action($"{GetLogPrefix()}Downloading: {_track.Title}");
 
-        string command = new YtDlpCommandBuilder(_track, tempFileBase).Build();
+        ProcessArguments command = new YtDlpCommandBuilder(_track, tempFileBase).Build();
         string ytDlpPath = ExecutableFinder.GetFullPath(SettingsManager.Current.YtDlpExe, SettingsManager.Current.YtDlpDir);
 
         try
@@ -150,8 +144,7 @@ internal class TrackProcessor
     {
         Log.Action($"{GetLogPrefix()}Processing: {track.Title}");
 
-        // Pass the coverFile to the builder so it can be embedded as an attached picture.
-        string command = new FfmpegCommandBuilder(track, inputFile, outputFile, coverFile).Build();
+        ProcessArguments command = new FfmpegCommandBuilder(track, inputFile, outputFile, coverFile).Build();
         string ffmpegPath = ExecutableFinder.GetFullPath(SettingsManager.Current.FfmpegExe, SettingsManager.Current.FfmpegDir);
 
         try
@@ -180,7 +173,6 @@ internal class TrackProcessor
             return;
         }
 
-        // Clean up everything starting with "temp." or "out."
         IEnumerable<string> tempFiles = Directory.EnumerateFiles(_albumDir, "temp.*")
             .Concat(Directory.EnumerateFiles(_albumDir, "out.*"));
 
