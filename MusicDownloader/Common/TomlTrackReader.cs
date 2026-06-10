@@ -60,15 +60,15 @@ internal static class TomlTrackReader
 
             return [.. collection.Song.Select(track =>
             {
-                if (!string.IsNullOrWhiteSpace(track.Url) && !track.Url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                if (!string.IsNullOrWhiteSpace(track.Source) && !track.Source.StartsWith("http", StringComparison.OrdinalIgnoreCase))
                 {
                     return track with
                     {
-                        Url = $"https://www.youtube.com/watch?v={track.Url.Trim()}"
+                        Source = $"https://www.youtube.com/watch?v={track.Source.Trim()}"
                     };
                 }
                 return track;
-            }).Where(t => !string.IsNullOrWhiteSpace(t.Url))];
+            }).Where(t => !string.IsNullOrWhiteSpace(t.Source))];
         }
         catch (Exception ex)
         {

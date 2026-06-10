@@ -18,7 +18,7 @@ internal sealed class YtDlpCommandBuilder
     {
         List<string> args = [
             "-f \"bestaudio[ext=m4a]/bestaudio\"",
-            $"\"{_track.Url}\""
+            $"\"{_track.Source}\""
         ];
 
         string ffmpegArgs = GetFfmpegArgs();

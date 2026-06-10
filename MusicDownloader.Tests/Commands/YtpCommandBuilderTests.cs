@@ -26,7 +26,7 @@ public sealed class YtDlpCommandBuilderTests
         Track track = new()
         {
             Title = "Download Track",
-            Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+            Source = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
         };
         SettingsManager.Current.CookiesBrowser = "";
         SettingsManager.Current.CookieFile = "nonexistent_cookie_file.txt";
@@ -53,7 +53,7 @@ public sealed class YtDlpCommandBuilderTests
         Track track = new()
         {
             Title = "Download Track",
-            Url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+            Source = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
         };
         SettingsManager.Current.CookiesBrowser = "firefox";
         SettingsManager.Current.FfmpegDir = @"C:\FfmpegPath";

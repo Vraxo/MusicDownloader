@@ -14,7 +14,7 @@ public class FfmpegCommandBuilderTests
             Title = "Song Title",
             Artist = "Artist Name",
             Album = "Album Name",
-            Url = "https://www.youtube.com/watch?v=123",
+            Source = "https://www.youtube.com/watch?v=123",
             TrackNumber = 1,
             Loop = 1
         };
@@ -35,7 +35,7 @@ public class FfmpegCommandBuilderTests
             Title = "Song Title",
             Artist = "Artist Name",
             Album = "Album Name",
-            Url = "https://www.youtube.com/watch?v=123",
+            Source = "https://www.youtube.com/watch?v=123",
             Loop = 3,
             Range = ["00:15", "01:30"]
         };
@@ -55,7 +55,7 @@ public class FfmpegCommandBuilderTests
             Title = "Song Title",
             Artist = "Artist Name",
             Album = "Album Name",
-            Url = "https://www.youtube.com/watch?v=123",
+            Source = "https://www.youtube.com/watch?v=123",
             Tempo = 110.0
         };
 

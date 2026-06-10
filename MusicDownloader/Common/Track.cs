@@ -10,7 +10,7 @@ internal sealed record Track
     public string Title { get; init; } = string.Empty;
     public DateTime? Date { get; init; } = null;
 
-    public string Url { get; init; } = string.Empty;
+    public string Source { get; init; } = string.Empty;
 
     public IReadOnlyList<string> Range { get; init; } = [];
     public double? Tempo { get; init; } = null;
