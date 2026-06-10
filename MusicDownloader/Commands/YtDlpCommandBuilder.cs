@@ -17,8 +17,15 @@ internal sealed class YtDlpCommandBuilder
     public ProcessArguments Build()
     {
         List<string> args = [
-            "-f", "bestaudio[ext=m4a]/bestaudio",
-            _track.Source,
+            "-f", "bestaudio[ext=m4a]/bestaudio"
+        ];
+
+        if (!string.IsNullOrWhiteSpace(_track.Source))
+        {
+            args.Add(_track.Source);
+        }
+
+        args.AddRange([
             "--write-thumbnail",
             "--no-add-metadata",
             "--downloader", "native",
@@ -27,7 +34,7 @@ internal sealed class YtDlpCommandBuilder
             "--http-chunk-size", "10M",
             "--socket-timeout", "30",
             "--no-mtime"
-        ];
+        ]);
 
         if (!string.IsNullOrWhiteSpace(SettingsManager.Current.FfmpegDir))
         {

@@ -6,14 +6,14 @@ internal sealed class ProcessArguments : IReadOnlyList<string>
 {
     private readonly List<string> _args;
 
+    public int Count => _args.Count;
+
+    public string this[int index] => _args[index];
+
     public ProcessArguments(IEnumerable<string> args)
     {
         _args = [.. args];
     }
-
-    public int Count => _args.Count;
-
-    public string this[int index] => _args[index];
 
     public IEnumerator<string> GetEnumerator()
     {
@@ -56,19 +56,43 @@ internal sealed class ProcessArguments : IReadOnlyList<string>
         if (eqIndex > 0)
         {
             string key = arg[..eqIndex];
-            string val = arg[(eqIndex + 1)..];
-            if (val.Contains(' ') || val.Contains('"'))
+            if (IsMetadataKey(key))
             {
+                string val = arg[(eqIndex + 1)..];
                 return $"{key}=\"{val.Replace("\"", "\\\"")}\"";
             }
-            return arg;
         }
 
-        if (!arg.Contains(' ') && !arg.Contains('"'))
+        if (!NeedsQuoting(arg))
         {
             return arg;
         }
 
         return $"\"{arg.Replace("\"", "\\\"")}\"";
+    }
+
+    private static bool NeedsQuoting(string arg)
+    {
+        foreach (char c in arg)
+        {
+            if (!char.IsLetterOrDigit(c) && c != '-' && c != '_' && c != ':')
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool IsMetadataKey(string key)
+    {
+        return key
+            is "title"
+            or "artist"
+            or "album"
+            or "track"
+            or "disc"
+            or "date"
+            or "genre"
+            or "comment";
     }
 }

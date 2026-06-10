@@ -6,9 +6,9 @@ namespace MusicDownloader.Workflows;
 
 internal static class PlaylistWriter
 {
-    public static void GeneratePlaylists()
+    public static async Task GeneratePlaylistsAsync()
     {
-        List<Track> allTracks = TomlTrackReader.ReadAllTracks();
+        List<Track> allTracks = await TomlTrackReader.ReadAllTracksAsync();
 
         if (allTracks.Count == 0)
         {
@@ -31,7 +31,7 @@ internal static class PlaylistWriter
 
         foreach ((string tag, List<Track> tracks) in tracksByTag)
         {
-            GenerateSinglePlaylist(tag, tracks);
+            await GenerateSinglePlaylistAsync(tag, tracks);
         }
     }
 
@@ -56,7 +56,7 @@ internal static class PlaylistWriter
         return map;
     }
 
-    private static void GenerateSinglePlaylist(string tag, IReadOnlyList<Track> tracks)
+    private static async Task GenerateSinglePlaylistAsync(string tag, IReadOnlyList<Track> tracks)
     {
         Log.Action($"Generating playlist for tag: '{tag}'...");
 
@@ -85,9 +85,9 @@ internal static class PlaylistWriter
         {
             string safeTagFileName = PathUtils.SafeFileName(tag);
             string playlistPath = Path.Combine(SettingsManager.Current.BaseDataDir, $"{safeTagFileName}.m3u");
-            Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
+            _ = Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
 
-            File.WriteAllText(playlistPath, contentBuilder.ToString());
+            await File.WriteAllTextAsync(playlistPath, contentBuilder.ToString());
             Log.Success($"Successfully created playlist: {Path.GetFileName(playlistPath)} with {tracks.Count} songs.");
         }
         catch (Exception ex)

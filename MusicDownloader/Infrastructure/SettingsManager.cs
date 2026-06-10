@@ -5,7 +5,7 @@ namespace MusicDownloader.Infrastructure;
 
 internal static class SettingsManager
 {
-    private const string SettingsFile = "settings.toml";
+    private static readonly string SettingsFile = Path.Combine("Data", "settings.toml");
 
     public static Settings Current { get; }
 
@@ -24,10 +24,17 @@ internal static class SettingsManager
                     settings = loaded;
                 }
             }
+            else
+            {
+                _ = Directory.CreateDirectory("Data");
+                string serialized = TomlSerializer.Serialize(settings);
+                File.WriteAllText(SettingsFile, serialized);
+                Log.Info($"Created default configuration file: '{SettingsFile}'");
+            }
         }
         catch (Exception ex)
         {
-            Log.Warning($"Failed to load '{SettingsFile}'. Using default settings. Error: {ex.Message}");
+            Log.Warning($"Failed to load or write '{SettingsFile}'. Using default settings. Error: {ex.Message}");
         }
 
         Current = settings;

@@ -1,28 +1,30 @@
 ﻿namespace MusicDownloader.Infrastructure;
 
-internal class Settings
+internal sealed class Settings
 {
-    // Paths
-    public string CsvDir { get; set; } = @"E:\Documents\Music Database";
-    public string BaseDataDir { get; set; } = @"E:\Audio\Music";
-    public string CookieFile { get; set; } = @"Data\Cookies.txt";
-    public string PlaylistCheckReportFile { get; set; } = @"Data\PlaylistReport.txt";
+    public string DatabaseDir { get; set; } = "Database";
 
-    // Executables
-    public string YtDlpDir { get; set; } = @"C:\Program Files\yt-dlp";
-    public string FfmpegDir { get; set; } = @"C:\Program Files\ffmpeg\bin";
+    public string BaseDataDir { get; set; } = "Music";
+
+    public string CookieFile { get; set; } = Path.Combine("Data", "Cookies.txt");
+
+    public string PlaylistCheckReportFile { get; set; } = Path.Combine("Data", "PlaylistReport.txt");
+
+    public string YtDlpDir { get; set; } = string.Empty;
+
+    public string FfmpegDir { get; set; } = string.Empty;
+
     public string YtDlpExe { get; set; } = "yt-dlp.exe";
+
     public string FfmpegExe { get; set; } = "ffmpeg.exe";
 
-    // Audio Settings
     public string AudioFormat { get; set; } = "m4a";
+
     public int AudioBitrateKbps { get; set; } = 320;
+
     public bool PreservePitchWhenChangingTempo { get; set; } = false;
 
-    // Delays
     public int DelayBetweenDownloadsMs { get; set; } = 2500;
 
-    // Authentication
-    // If set (e.g., "chrome", "firefox"), yt-dlp will grab cookies directly from the browser.
     public string? CookiesBrowser { get; set; } = "chrome";
 }

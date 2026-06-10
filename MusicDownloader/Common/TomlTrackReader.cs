@@ -5,9 +5,9 @@ namespace MusicDownloader.Common;
 
 internal static class TomlTrackReader
 {
-    public static List<Track> ReadAllTracks()
+    public static async Task<List<Track>> ReadAllTracksAsync()
     {
-        string tomlDir = SettingsManager.Current.CsvDir;
+        string tomlDir = SettingsManager.Current.DatabaseDir;
 
         if (!Directory.Exists(tomlDir))
         {
@@ -28,7 +28,7 @@ internal static class TomlTrackReader
 
         foreach (string tomlFile in tomlFiles)
         {
-            List<Track> fileTracks = GetTracksFromSingleToml(tomlFile);
+            List<Track> fileTracks = await GetTracksFromSingleTomlAsync(tomlFile);
             if (fileTracks.Count <= 0)
             {
                 continue;
@@ -46,11 +46,11 @@ internal static class TomlTrackReader
         return tracks;
     }
 
-    public static List<Track> GetTracksFromSingleToml(string filePath)
+    public static async Task<List<Track>> GetTracksFromSingleTomlAsync(string filePath)
     {
         try
         {
-            string content = File.ReadAllText(filePath);
+            string content = await File.ReadAllTextAsync(filePath);
             SongCollection? collection = TomlSerializer.Deserialize<SongCollection>(content);
 
             if (collection?.Song is null)
@@ -60,11 +60,11 @@ internal static class TomlTrackReader
 
             return [.. collection.Song.Select(track =>
             {
-                if (!string.IsNullOrWhiteSpace(track.Source) && !track.Source.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                if (!string.IsNullOrWhiteSpace(track.Source))
                 {
                     return track with
                     {
-                        Source = $"https://www.youtube.com/watch?v={track.Source.Trim()}"
+                        Source = NormalizeSource(track.Source)
                     };
                 }
                 return track;
@@ -75,5 +75,28 @@ internal static class TomlTrackReader
             Log.Error($"Failed to read or parse TOML file '{filePath}': {ex.Message}");
             return [];
         }
+    }
+
+    private static string NormalizeSource(string source)
+    {
+        string trimmed = source.Trim();
+
+        if (trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return trimmed;
+        }
+
+        if (trimmed.Contains('.') || trimmed.Contains('/'))
+        {
+            return $"https://{trimmed}";
+        }
+
+        if (trimmed.Length == 11)
+        {
+            return $"https://www.youtube.com/watch?v={trimmed}";
+        }
+
+        return trimmed;
     }
 }

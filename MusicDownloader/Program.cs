@@ -4,11 +4,19 @@ using MusicDownloader.Workflows;
 
 try
 {
-    Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
+    bool isFirstRun = !Directory.Exists(SettingsManager.Current.DatabaseDir);
 
-    if (args.Any(a => a.Equals("playlist", StringComparison.OrdinalIgnoreCase)))
+    _ = Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
+    _ = Directory.CreateDirectory(SettingsManager.Current.DatabaseDir);
+
+    if (isFirstRun)
     {
-        PlaylistWriter.GeneratePlaylists();
+        Log.Success($"Created default database directory: '{SettingsManager.Current.DatabaseDir}'");
+        Log.Info($"Please place your `.toml` track files in '{SettingsManager.Current.DatabaseDir}' and run the application again.");
+    }
+    else if (args.Any(a => a.Equals("playlist", StringComparison.OrdinalIgnoreCase)))
+    {
+        await PlaylistWriter.GeneratePlaylistsAsync();
     }
     else if (args.Any(a => a.Equals("process", StringComparison.OrdinalIgnoreCase)))
     {
