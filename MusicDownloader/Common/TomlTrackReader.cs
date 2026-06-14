@@ -51,52 +51,19 @@ internal static class TomlTrackReader
         try
         {
             string content = await File.ReadAllTextAsync(filePath);
-            SongCollection? collection = TomlSerializer.Deserialize<SongCollection>(content);
+            SongCollection? collection = TomlSerializer.Deserialize<SongCollection?>(content);
 
             if (collection?.Song is null)
             {
                 return [];
             }
 
-            return [.. collection.Song.Select(track =>
-            {
-                if (!string.IsNullOrWhiteSpace(track.Source))
-                {
-                    return track with
-                    {
-                        Source = NormalizeSource(track.Source)
-                    };
-                }
-                return track;
-            }).Where(t => !string.IsNullOrWhiteSpace(t.Source))];
+            return [.. collection.Song.Where(t => !string.IsNullOrWhiteSpace(t.Source))];
         }
         catch (Exception ex)
         {
             Log.Error($"Failed to read or parse TOML file '{filePath}': {ex.Message}");
             return [];
         }
-    }
-
-    private static string NormalizeSource(string source)
-    {
-        string trimmed = source.Trim();
-
-        if (trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-            trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-        {
-            return trimmed;
-        }
-
-        if (trimmed.Contains('.') || trimmed.Contains('/'))
-        {
-            return $"https://{trimmed}";
-        }
-
-        if (trimmed.Length == 11)
-        {
-            return $"https://www.youtube.com/watch?v={trimmed}";
-        }
-
-        return trimmed;
     }
 }

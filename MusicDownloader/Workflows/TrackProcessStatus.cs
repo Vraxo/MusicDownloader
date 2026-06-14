@@ -4,5 +4,6 @@ internal enum TrackProcessStatus
 {
     Skipped,
     Success,
-    Failed
+    Failed,
+    MetadataUpdated
 }

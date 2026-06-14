@@ -25,11 +25,11 @@ internal static class AutomaticProcessor
 
         PrintPreFlightStats(allTracks.Count, alreadyDownloadedCount, pendingTracks.Count);
 
-        (int downloaded, int failed, int updatedCount) = await ProcessQueueAsync(pendingTracks, alreadyDownloadedCount);
+        (int downloaded, int metadataUpdated, int failed, int updatedCount) = await ProcessQueueAsync(pendingTracks, alreadyDownloadedCount);
 
         Console.WriteLine();
         Log.Success(
-            $"Processing finished: {downloaded} newly downloaded, {failed} failed. " +
+            $"Processing finished: {downloaded} newly downloaded, {metadataUpdated} metadata updated, {failed} failed. " +
             $"({updatedCount} were already up to date)");
     }
 
@@ -40,9 +40,17 @@ internal static class AutomaticProcessor
 
         foreach (Track track in tracks)
         {
-            if (File.Exists(TrackProcessor.GetOutputFile(track)))
+            string outputFile = TrackProcessor.GetOutputFile(track);
+            if (File.Exists(outputFile))
             {
-                upToDate++;
+                if (AudioProber.IsMetadataUpToDate(outputFile, track))
+                {
+                    upToDate++;
+                }
+                else
+                {
+                    pending.Add(track);
+                }
             }
             else
             {
@@ -61,9 +69,10 @@ internal static class AutomaticProcessor
         Console.WriteLine();
     }
 
-    private static async Task<(int Downloaded, int Failed, int UpToDate)> ProcessQueueAsync(IReadOnlyList<Track> queue, int alreadyDownloadedCount)
+    private static async Task<(int Downloaded, int MetadataUpdated, int Failed, int UpToDate)> ProcessQueueAsync(IReadOnlyList<Track> queue, int alreadyDownloadedCount)
     {
         int downloaded = 0;
+        int metadataUpdated = 0;
         int failed = 0;
         int upToDate = alreadyDownloadedCount;
         int total = queue.Count;
@@ -94,15 +103,18 @@ internal static class AutomaticProcessor
                 case TrackProcessStatus.Skipped:
                     upToDate++;
                     break;
+                case TrackProcessStatus.MetadataUpdated:
+                    metadataUpdated++;
+                    break;
             }
 
-            bool downloadAttempted = status != TrackProcessStatus.Skipped;
+            bool downloadAttempted = status == TrackProcessStatus.Success;
             if (downloadAttempted && SettingsManager.Current.DelayBetweenDownloadsMs > 0)
             {
                 await Task.Delay(SettingsManager.Current.DelayBetweenDownloadsMs);
             }
         }
 
-        return (downloaded, failed, upToDate);
+        return (downloaded, metadataUpdated, failed, upToDate);
     }
 }

@@ -32,11 +32,19 @@ using MusicDownloader.Workflows;
 
 try
 {
-    Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
+    bool isFirstRun = !Directory.Exists(SettingsManager.Current.DatabaseDir);
 
-    if (args.Any(a => a.Equals("playlist", StringComparison.OrdinalIgnoreCase)))
+    _ = Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
+    _ = Directory.CreateDirectory(SettingsManager.Current.DatabaseDir);
+
+    if (isFirstRun)
     {
-        PlaylistWriter.GeneratePlaylists();
+        Log.Success($"Created default database directory: '{SettingsManager.Current.DatabaseDir}'");
+        Log.Info($"Please place your `.toml` track files in '{SettingsManager.Current.DatabaseDir}' and run the application again.");
+    }
+    else if (args.Any(a => a.Equals("playlist", StringComparison.OrdinalIgnoreCase)))
+    {
+        await PlaylistWriter.GeneratePlaylistsAsync();
     }
     else if (args.Any(a => a.Equals("process", StringComparison.OrdinalIgnoreCase)))
     {
@@ -85,7 +93,7 @@ internal sealed class FfmpegCommandBuilder
         _coverFile = coverFile;
     }
 
-    public string Build()
+    public ProcessArguments Build()
     {
         int loopCount = _track.Loop;
         string start = _track.Range.Count == 2 ? _track.Range[0] : "";
@@ -98,25 +106,22 @@ internal sealed class FfmpegCommandBuilder
 
         if (hasTrim && loopCount <= 1)
         {
-            List<string> trimArgs = [];
             if (!string.IsNullOrEmpty(start))
             {
-                trimArgs.Add($"-ss {start}");
+                args.AddRange(["-ss", start]);
             }
 
             if (!string.IsNullOrEmpty(end))
             {
-                trimArgs.Add($"-to {end}");
+                args.AddRange(["-to", end]);
             }
-
-            args.Add(string.Join(" ", trimArgs));
         }
 
-        args.Add($"-i \"{_inputFile}\"");
+        args.AddRange(["-i", _inputFile]);
 
         if (_coverFile is not null)
         {
-            args.Add($"-i \"{_coverFile}\"");
+            args.AddRange(["-i", _coverFile]);
         }
 
         if (loopCount > 1)
@@ -145,59 +150,84 @@ internal sealed class FfmpegCommandBuilder
             }
 
             string filterChain = string.Join(",", filterList);
-            args.Add($"-filter_complex \"[0:a]{filterChain}[outa]\"");
-            args.Add("-map \"[outa]\"");
+            args.AddRange(["-filter_complex", $"[0:a]{filterChain}[outa]", "-map", "[outa]"]);
         }
         else
         {
             if (!string.IsNullOrEmpty(tempoFilter))
             {
-                args.Add($"-filter:a \"{tempoFilter}\"");
+                args.AddRange(["-filter:a", tempoFilter]);
             }
-            args.Add("-map 0:a");
+            args.AddRange(["-map", "0:a"]);
         }
 
-        args.Add(_coverFile is not null ? "-map 1:0" : "-map 0:v?");
-
-        args.AddRange(BuildMetadataArgs());
-        args.Add("-map_metadata -1");
-
-        if (hasFilter)
+        if (_coverFile is not null)
         {
-            args.Add($"-c:a aac -b:a {SettingsManager.Current.AudioBitrateKbps}k");
+            args.AddRange(["-map", "1:0"]);
         }
         else
         {
-            args.Add("-c:a copy");
+            args.AddRange(["-map", "0:v?"]);
         }
 
-        args.Add(_coverFile is not null ? "-c:v mjpeg -disposition:v:0 attached_pic" : "-c:v copy");
-        args.Add($"\"{_outputFile}\"");
+        args.AddRange(BuildMetadataArgs());
+        args.AddRange(["-map_metadata", "-1"]);
 
-        return string.Join(" ", args);
+        if (hasFilter)
+        {
+            args.AddRange(["-c:a", "aac", "-b:a", $"{SettingsManager.Current.AudioBitrateKbps}k"]);
+        }
+        else
+        {
+            args.AddRange(["-c:a", "copy"]);
+        }
+
+        if (_coverFile is not null)
+        {
+            args.AddRange(["-c:v", "mjpeg", "-disposition:v:0", "attached_pic"]);
+        }
+        else
+        {
+            args.AddRange(["-c:v", "copy"]);
+        }
+
+        args.Add(_outputFile);
+
+        return args;
     }
 
-    private IEnumerable<string> BuildMetadataArgs()
+    private List<string> BuildMetadataArgs()
     {
-        List<string> meta = [
-            $"-metadata title=\"{_track.Title}\"",
-            $"-metadata artist=\"{_track.Artist}\"",
-            $"-metadata album=\"{_track.Album}\""
-        ];
+        List<string> meta = [];
+
+        meta.AddRange(["-metadata", $"title={_track.Title}"]);
+        meta.AddRange(["-metadata", $"artist={_track.Artist}"]);
+        meta.AddRange(["-metadata", $"album={_track.Album}"]);
 
         if (_track.TrackNumber.HasValue)
         {
-            meta.Add($"-metadata track=\"{_track.TrackNumber.Value}\"");
+            meta.AddRange(["-metadata", $"track={_track.TrackNumber.Value}"]);
         }
 
         if (_track.DiscNumber.HasValue)
         {
-            meta.Add($"-metadata disc=\"{_track.DiscNumber.Value}\"");
+            meta.AddRange(["-metadata", $"disc={_track.DiscNumber.Value}"]);
         }
 
-        if (_track.Date.HasValue)
+        if (!string.IsNullOrWhiteSpace(_track.Date))
         {
-            meta.Add($"-metadata date=\"{_track.Date.Value:yyyy-MM-dd}\"");
+            meta.AddRange(["-metadata", $"date={_track.Date}"]);
+        }
+
+        if (_track.Tags.Count > 0)
+        {
+            string tagsJoined = string.Join(", ", _track.Tags);
+            meta.AddRange(["-metadata", $"genre={tagsJoined}"]);
+        }
+
+        if (!string.IsNullOrWhiteSpace(_track.Source))
+        {
+            meta.AddRange(["-metadata", $"comment={_track.Source}"]);
         }
 
         return meta;
@@ -240,7 +270,7 @@ internal static class FfmpegNetworkTester
         Log.Info("Running FFmpeg network connectivity test (HTTPS)...");
 
         string ffmpegExe = ExecutableFinder.GetFullPath(SettingsManager.Current.FfmpegExe, SettingsManager.Current.FfmpegDir);
-        string args = "-v error -i https://www.google.com -f null -";
+        string[] args = ["-v", "error", "-i", "https://www.google.com", "-f", "null", "-"];
 
         try
         {
@@ -289,35 +319,42 @@ internal sealed class FlacFfmpegCommandBuilder(
     IReadOnlyList<string> range,
     int sampleRate)
 {
-    public string Build()
+    public ProcessArguments Build()
     {
-        string trimOpts = BuildTrimOptions();
-        string filterOpts = BuildFilterOptions();
-        string trimStr = string.IsNullOrEmpty(trimOpts) ? "" : $"{trimOpts} ";
+        List<string> args = ["-y"];
 
-        if (string.IsNullOrEmpty(filterOpts))
+        args.AddRange(BuildTrimOptions());
+
+        args.AddRange(["-i", inputFile]);
+
+        args.AddRange(BuildFilterOptions());
+
+        args.AddRange(["-map", "0", "-map_metadata", "-1"]);
+
+        if (HasFilter())
         {
-            return
-                $"-y {trimStr}" +
-                $"-i \"{inputFile}\" " +
-                $"-map 0 " +
-                $"-map_metadata -1 " +
-                $"-c copy \"{outputFile}\"";
+            args.AddRange(["-c:a", "flac"]);
+        }
+        else
+        {
+            args.AddRange(["-c", "copy"]);
         }
 
-        return
-            $"-y {trimStr}" +
-            $"-i \"{inputFile}\" {filterOpts} " +
-            $"-map 0 " +
-            $"-map_metadata -1 " +
-            $"-c:a flac \"{outputFile}\"";
+        args.Add(outputFile);
+
+        return args;
     }
 
-    private string BuildTrimOptions()
+    private bool HasFilter()
+    {
+        return tempo is > 0;
+    }
+
+    private List<string> BuildTrimOptions()
     {
         if (range.Count != 2)
         {
-            return "";
+            return [];
         }
 
         string start = range[0];
@@ -326,22 +363,22 @@ internal sealed class FlacFfmpegCommandBuilder(
         List<string> trimArgs = [];
         if (!string.IsNullOrEmpty(start))
         {
-            trimArgs.Add($"-ss {start}");
+            trimArgs.AddRange(["-ss", start]);
         }
 
         if (!string.IsNullOrEmpty(end))
         {
-            trimArgs.Add($"-to {end}");
+            trimArgs.AddRange(["-to", end]);
         }
 
-        return string.Join(" ", trimArgs);
+        return trimArgs;
     }
 
-    private string BuildFilterOptions()
+    private List<string> BuildFilterOptions()
     {
         if (tempo is null or <= 0)
         {
-            return "";
+            return [];
         }
 
         double tempoMultiplier = tempo.Value / 100.0;
@@ -349,11 +386,11 @@ internal sealed class FlacFfmpegCommandBuilder(
         if (SettingsManager.Current.PreservePitchWhenChangingTempo)
         {
             string tempoFormatted = tempoMultiplier.ToString("0.000", CultureInfo.InvariantCulture);
-            return $"-filter:a \"atempo={tempoFormatted}\"";
+            return ["-filter:a", $"atempo={tempoFormatted}"];
         }
 
         int newSampleRate = (int)double.Round(sampleRate * tempoMultiplier);
-        return $"-filter:a \"asetrate={newSampleRate}\"";
+        return ["-filter:a", $"asetrate={newSampleRate}"];
     }
 }
 ```
@@ -379,60 +416,49 @@ internal sealed class YtDlpCommandBuilder
         _tempFileBase = tempFileBase;
     }
 
-    public string Build()
+    public ProcessArguments Build()
     {
         List<string> args = [
-            "-f \"bestaudio[ext=m4a]/bestaudio\"",
-            $"\"{_track.Source}\""
+            "-f", "bestaudio[ext=m4a]/bestaudio"
         ];
 
-        string ffmpegArgs = GetFfmpegArgs();
-        if (!string.IsNullOrEmpty(ffmpegArgs))
+        if (!string.IsNullOrWhiteSpace(_track.Source))
         {
-            args.Add(ffmpegArgs);
+            args.Add(_track.Source);
         }
 
-        args.Add("--write-thumbnail");
-        args.Add("--no-add-metadata");
-        args.Add("--downloader native");
-        args.Add("--retries 20");
-        args.Add("--fragment-retries 20");
-        args.Add("--http-chunk-size 10M");
-        args.Add("--socket-timeout 30");
-        args.Add("--no-mtime");
+        args.AddRange([
+            "--write-thumbnail",
+            "--no-add-metadata",
+            "--downloader", "native",
+            "--retries", "20",
+            "--fragment-retries", "20",
+            "--http-chunk-size", "10M",
+            "--socket-timeout", "30",
+            "--no-mtime"
+        ]);
 
-        string cookieArgs = GetCookieArgs();
-        if (!string.IsNullOrEmpty(cookieArgs))
+        if (!string.IsNullOrWhiteSpace(SettingsManager.Current.FfmpegDir))
         {
-            args.Add(cookieArgs);
+            args.AddRange(["--ffmpeg-location", SettingsManager.Current.FfmpegDir]);
         }
 
-        args.Add($"-o \"{_tempFileBase}.%(ext)s\"");
-
-        return string.Join(" ", args);
-    }
-
-    private static string GetCookieArgs()
-    {
         if (!string.IsNullOrWhiteSpace(SettingsManager.Current.CookiesBrowser))
         {
-            return $"--cookies-from-browser {SettingsManager.Current.CookiesBrowser}";
+            args.AddRange(["--cookies-from-browser", SettingsManager.Current.CookiesBrowser]);
         }
-
-        string relativePath = SettingsManager.Current.CookieFile;
-        if (File.Exists(relativePath))
+        else
         {
-            return $"--cookies \"{Path.GetFullPath(relativePath)}\"";
+            string relativePath = SettingsManager.Current.CookieFile;
+            if (File.Exists(relativePath))
+            {
+                args.AddRange(["--cookies", Path.GetFullPath(relativePath)]);
+            }
         }
 
-        return "";
-    }
+        args.AddRange(["-o", $"{_tempFileBase}.%(ext)s"]);
 
-    private static string GetFfmpegArgs()
-    {
-        return !string.IsNullOrWhiteSpace(SettingsManager.Current.FfmpegDir)
-            ? $"--ffmpeg-location \"{SettingsManager.Current.FfmpegDir}\""
-            : "";
+        return args;
     }
 }
 ```
@@ -527,9 +553,9 @@ namespace MusicDownloader.Common;
 
 internal static class TomlTrackReader
 {
-    public static List<Track> ReadAllTracks()
+    public static async Task<List<Track>> ReadAllTracksAsync()
     {
-        string tomlDir = SettingsManager.Current.CsvDir;
+        string tomlDir = SettingsManager.Current.DatabaseDir;
 
         if (!Directory.Exists(tomlDir))
         {
@@ -537,7 +563,7 @@ internal static class TomlTrackReader
             return [];
         }
 
-        List<string> tomlFiles = Directory.EnumerateFiles(tomlDir, "*.toml").ToList();
+        List<string> tomlFiles = [.. Directory.EnumerateFiles(tomlDir, "*.toml")];
 
         if (tomlFiles.Count == 0)
         {
@@ -550,7 +576,7 @@ internal static class TomlTrackReader
 
         foreach (string tomlFile in tomlFiles)
         {
-            List<Track> fileTracks = GetTracksFromSingleToml(tomlFile);
+            List<Track> fileTracks = await GetTracksFromSingleTomlAsync(tomlFile);
             if (fileTracks.Count <= 0)
             {
                 continue;
@@ -568,29 +594,19 @@ internal static class TomlTrackReader
         return tracks;
     }
 
-    public static List<Track> GetTracksFromSingleToml(string filePath)
+    public static async Task<List<Track>> GetTracksFromSingleTomlAsync(string filePath)
     {
         try
         {
-            string content = File.ReadAllText(filePath);
-            SongCollection? collection = TomlSerializer.Deserialize<SongCollection>(content);
+            string content = await File.ReadAllTextAsync(filePath);
+            SongCollection? collection = TomlSerializer.Deserialize<SongCollection?>(content);
 
             if (collection?.Song is null)
             {
                 return [];
             }
 
-            return [.. collection.Song.Select(track =>
-            {
-                if (!string.IsNullOrWhiteSpace(track.Source) && !track.Source.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-                {
-                    return track with
-                    {
-                        Source = $"https://www.youtube.com/watch?v={track.Source.Trim()}"
-                    };
-                }
-                return track;
-            }).Where(t => !string.IsNullOrWhiteSpace(t.Source))];
+            return [.. collection.Song.Where(t => !string.IsNullOrWhiteSpace(t.Source))];
         }
         catch (Exception ex)
         {
@@ -616,7 +632,7 @@ internal sealed record Track
 
     public int? TrackNumber { get; init; } = null;
     public string Title { get; init; } = string.Empty;
-    public DateTime? Date { get; init; } = null;
+    public string? Date { get; init; } = null;
 
     public string Source { get; init; } = string.Empty;
 
@@ -769,12 +785,13 @@ internal static class AudioProber
         string ffprobeExe = SettingsManager.Current.FfmpegExe.Replace("ffmpeg", "ffprobe");
         string ffprobePath = ExecutableFinder.GetFullPath(ffprobeExe, SettingsManager.Current.FfmpegDir);
 
-        string args =
-            $"-v error " +
-            $"-select_streams " +
-            $"a:0 " +
-            $"-show_entries {entries} " +
-            $"-of default=noprint_wrappers=1:nokey=1 \"{inputFile}\"";
+        string[] args = [
+            "-v", "error",
+            "-select_streams", "a:0",
+            "-show_entries", entries,
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            inputFile
+        ];
 
         try
         {
@@ -838,6 +855,111 @@ internal static class ExecutableFinder
 
 ---
 
+### `MusicDownloader\Infrastructure\ProcessArguments.cs`
+
+```csharp
+using System.Collections;
+
+namespace MusicDownloader.Infrastructure;
+
+internal sealed class ProcessArguments : IReadOnlyList<string>
+{
+    private readonly List<string> _args;
+
+    public int Count => _args.Count;
+
+    public string this[int index] => _args[index];
+
+    public ProcessArguments(IEnumerable<string> args)
+    {
+        _args = [.. args];
+    }
+
+    public IEnumerator<string> GetEnumerator()
+    {
+        return _args.GetEnumerator();
+    }
+
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
+
+    public static implicit operator string(ProcessArguments p)
+    {
+        return string.Join(" ", p._args.Select(EscapeArgument));
+    }
+
+    public static implicit operator ProcessArguments(List<string> list)
+    {
+        return new(list);
+    }
+
+    public static implicit operator ProcessArguments(string[] array)
+    {
+        return new(array);
+    }
+
+    public override string ToString()
+    {
+        return this;
+    }
+
+    private static string EscapeArgument(string arg)
+    {
+        if (string.IsNullOrEmpty(arg))
+        {
+            return "\"\"";
+        }
+
+        int eqIndex = arg.IndexOf('=');
+        if (eqIndex > 0)
+        {
+            string key = arg[..eqIndex];
+            if (IsMetadataKey(key))
+            {
+                string val = arg[(eqIndex + 1)..];
+                return $"{key}=\"{val.Replace("\"", "\\\"")}\"";
+            }
+        }
+
+        if (!NeedsQuoting(arg))
+        {
+            return arg;
+        }
+
+        return $"\"{arg.Replace("\"", "\\\"")}\"";
+    }
+
+    private static bool NeedsQuoting(string arg)
+    {
+        foreach (char c in arg)
+        {
+            if (!char.IsLetterOrDigit(c) && c != '-' && c != '_' && c != ':')
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool IsMetadataKey(string key)
+    {
+        return key
+            is "title"
+            or "artist"
+            or "album"
+            or "track"
+            or "disc"
+            or "date"
+            or "genre"
+            or "comment";
+    }
+}
+```
+
+---
+
 ### `MusicDownloader\Infrastructure\ProcessExecutor.cs`
 
 ```csharp
@@ -850,7 +972,7 @@ namespace MusicDownloader.Infrastructure;
 
 internal class ProcessExecutor
 {
-    public static int Run(string exe, string args, Action<string>? stdErrHandler = null)
+    public static int Run(string exe, ProcessArguments args, Action<string>? stdErrHandler = null)
     {
         try
         {
@@ -897,7 +1019,7 @@ internal class ProcessExecutor
         }
     }
 
-    public static ProcessResult RunAndCapture(string exe, string args)
+    public static ProcessResult RunAndCapture(string exe, ProcessArguments args)
     {
         try
         {
@@ -943,24 +1065,37 @@ internal class ProcessExecutor
         }
     }
 
-    private static Process CreateProcess(string exe, string args)
+    private static Process CreateProcess(string exe, ProcessArguments args)
     {
-        return new Process
+        Process proc = new()
         {
             StartInfo = new()
             {
                 FileName = exe,
-                Arguments = args,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
             }
         };
+
+        foreach (string arg in args)
+        {
+            proc.StartInfo.ArgumentList.Add(arg);
+        }
+
+        return proc;
     }
 
     private static void HandleStdErr(string data)
     {
+        if (data.Contains("DPAPI", StringComparison.OrdinalIgnoreCase))
+        {
+            Log.Error("Chrome cookie extraction failed due to a recent Google Chrome update.");
+            Log.Error("Solution: Open 'Data/settings.toml', set CookiesBrowser = \"\", and use 'Cookies.txt' instead.");
+            return;
+        }
+
         if (data.Contains("error", StringComparison.OrdinalIgnoreCase) ||
             data.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
             data.Contains("fatal", StringComparison.OrdinalIgnoreCase))
@@ -1003,31 +1138,33 @@ internal record ProcessResult(int ExitCode, string StandardOutput, string Standa
 ```csharp
 namespace MusicDownloader.Infrastructure;
 
-internal class Settings
+internal sealed class Settings
 {
-    // Paths
-    public string CsvDir { get; set; } = @"E:\Documents\Music Database";
-    public string BaseDataDir { get; set; } = @"E:\Audio\Music";
-    public string CookieFile { get; set; } = @"Data\Cookies.txt";
-    public string PlaylistCheckReportFile { get; set; } = @"Data\PlaylistReport.txt";
+    public string DatabaseDir { get; set; } = "Database";
 
-    // Executables
-    public string YtDlpDir { get; set; } = @"C:\Program Files\yt-dlp";
-    public string FfmpegDir { get; set; } = @"C:\Program Files\ffmpeg\bin";
+    public string BaseDataDir { get; set; } = "Music";
+
+    public string CookieFile { get; set; } = Path.Combine("Data", "Cookies.txt");
+
+    public string PlaylistCheckReportFile { get; set; } = Path.Combine("Data", "PlaylistReport.txt");
+
+    public string YtDlpDir { get; set; } = string.Empty;
+
+    public string FfmpegDir { get; set; } = string.Empty;
+
     public string YtDlpExe { get; set; } = "yt-dlp.exe";
+
     public string FfmpegExe { get; set; } = "ffmpeg.exe";
 
-    // Audio Settings
     public string AudioFormat { get; set; } = "m4a";
+
     public int AudioBitrateKbps { get; set; } = 320;
+
     public bool PreservePitchWhenChangingTempo { get; set; } = false;
 
-    // Delays
     public int DelayBetweenDownloadsMs { get; set; } = 2500;
 
-    // Authentication
-    // If set (e.g., "chrome", "firefox"), yt-dlp will grab cookies directly from the browser.
-    public string? CookiesBrowser { get; set; } = "chrome";
+    public string? CookiesBrowser { get; set; } = null;
 }
 ```
 
@@ -1043,7 +1180,7 @@ namespace MusicDownloader.Infrastructure;
 
 internal static class SettingsManager
 {
-    private const string SettingsFile = "settings.toml";
+    private static readonly string SettingsFile = Path.Combine("Data", "settings.toml");
 
     public static Settings Current { get; }
 
@@ -1062,10 +1199,19 @@ internal static class SettingsManager
                     settings = loaded;
                 }
             }
+            else
+            {
+                _ = Directory.CreateDirectory("Data");
+                string serialized = TomlSerializer.Serialize(settings);
+                File.WriteAllText(SettingsFile, serialized);
+                Log.Info($"Created default configuration file: '{SettingsFile}'");
+            }
         }
         catch (Exception ex)
         {
-            Log.Warning($"Failed to load '{SettingsFile}'. Using default settings. Error: {ex.Message}");
+            Log.Warning(
+                $"Failed to load or write '{SettingsFile}'." +
+                $"Using default settings. Error: {ex.Message}");
         }
 
         Current = settings;
@@ -1087,7 +1233,7 @@ internal static class AutomaticProcessor
 {
     public static async Task RunAsync()
     {
-        List<Track> allTracks = TomlTrackReader.ReadAllTracks();
+        List<Track> allTracks = await TomlTrackReader.ReadAllTracksAsync();
         if (allTracks.Count == 0)
         {
             return;
@@ -1277,7 +1423,7 @@ internal static class ManualProcessor
     private static void ExecuteProcessing(string inputFile, string outputFile, double? tempo, IReadOnlyList<string> range, int sampleRate)
     {
         FlacFfmpegCommandBuilder commandBuilder = new(inputFile, outputFile, tempo, range, sampleRate);
-        string command = commandBuilder.Build();
+        ProcessArguments command = commandBuilder.Build();
 
         string ffmpegPath = ExecutableFinder.GetFullPath(SettingsManager.Current.FfmpegExe, SettingsManager.Current.FfmpegDir);
         int exitCode = ProcessExecutor.Run(ffmpegPath, command);
@@ -1309,9 +1455,9 @@ namespace MusicDownloader.Workflows;
 
 internal static class PlaylistWriter
 {
-    public static void GeneratePlaylists()
+    public static async Task GeneratePlaylistsAsync()
     {
-        List<Track> allTracks = TomlTrackReader.ReadAllTracks();
+        List<Track> allTracks = await TomlTrackReader.ReadAllTracksAsync();
 
         if (allTracks.Count == 0)
         {
@@ -1334,7 +1480,7 @@ internal static class PlaylistWriter
 
         foreach ((string tag, List<Track> tracks) in tracksByTag)
         {
-            GenerateSinglePlaylist(tag, tracks);
+            await GenerateSinglePlaylistAsync(tag, tracks);
         }
     }
 
@@ -1359,7 +1505,7 @@ internal static class PlaylistWriter
         return map;
     }
 
-    private static void GenerateSinglePlaylist(string tag, IReadOnlyList<Track> tracks)
+    private static async Task GenerateSinglePlaylistAsync(string tag, IReadOnlyList<Track> tracks)
     {
         Log.Action($"Generating playlist for tag: '{tag}'...");
 
@@ -1388,9 +1534,9 @@ internal static class PlaylistWriter
         {
             string safeTagFileName = PathUtils.SafeFileName(tag);
             string playlistPath = Path.Combine(SettingsManager.Current.BaseDataDir, $"{safeTagFileName}.m3u");
-            Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
+            _ = Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
 
-            File.WriteAllText(playlistPath, contentBuilder.ToString());
+            await File.WriteAllTextAsync(playlistPath, contentBuilder.ToString());
             Log.Success($"Successfully created playlist: {Path.GetFileName(playlistPath)} with {tracks.Count} songs.");
         }
         catch (Exception ex)
@@ -1458,13 +1604,11 @@ internal class TrackProcessor
 
         try
         {
-            // 1. Download Full Audio + Thumbnail.
             if (!await RunFullDownloadAsync(tempFileBase))
             {
                 return TrackProcessStatus.Failed;
             }
 
-            // 2. Find the downloaded audio file (e.g., temp.m4a).
             string? downloadedAudio = FindDownloadedFile(tempFileBase);
             if (downloadedAudio is null)
             {
@@ -1472,21 +1616,19 @@ internal class TrackProcessor
                 return TrackProcessStatus.Failed;
             }
 
-            // 3. Find the downloaded cover art (e.g., temp.webp, temp.jpg).
             string? downloadedCover = FindCoverFile(tempFileBase);
             if (downloadedCover is not null)
             {
                 Log.Info($"{GetLogPrefix()}Found cover art: {Path.GetFileName(downloadedCover)}");
             }
 
-            // 4. Process Audio (Trimming, Loop, Tempo, Embedding Cover).
             if (!await ProcessAudioAsync(_track, downloadedAudio, downloadedCover, finalTempOut))
             {
                 return TrackProcessStatus.Failed;
             }
 
             File.Move(finalTempOut, outputFile, true);
-            Log.Success($"{GetLogPrefix()}Done: {_track.Title}");
+            Log.Success($"{GetLogPrefix()}Done: {_track.Title} -> {outputFile}");
             return TrackProcessStatus.Success;
         }
         catch (Exception ex)
@@ -1509,14 +1651,13 @@ internal class TrackProcessor
     private static string? FindDownloadedFile(string baseName)
     {
         string dir = Path.GetDirectoryName(baseName)!;
-        string fileName = Path.GetFileName(baseName); // "temp"
+        string fileName = Path.GetFileName(baseName);
 
         string[] candidates = Directory.GetFiles(dir, $"{fileName}.*");
 
         return candidates.FirstOrDefault(f =>
         {
             string ext = Path.GetExtension(f).ToLowerInvariant();
-            // Exclude common non-audio files
             return ext is not ".webp" and not ".jpg" and not ".png" and not ".json" and not ".part" and not ".ytdl";
         });
     }
@@ -1524,11 +1665,10 @@ internal class TrackProcessor
     private static string? FindCoverFile(string baseName)
     {
         string dir = Path.GetDirectoryName(baseName)!;
-        string fileName = Path.GetFileName(baseName); // "temp"
+        string fileName = Path.GetFileName(baseName);
 
         string[] candidates = Directory.GetFiles(dir, $"{fileName}.*");
 
-        // Prefer highest quality/common image formats
         return candidates.FirstOrDefault(f => f.EndsWith(".webp", StringComparison.OrdinalIgnoreCase))
             ?? candidates.FirstOrDefault(f => f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase))
             ?? candidates.FirstOrDefault(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
@@ -1539,7 +1679,7 @@ internal class TrackProcessor
     {
         Log.Action($"{GetLogPrefix()}Downloading: {_track.Title}");
 
-        string command = new YtDlpCommandBuilder(_track, tempFileBase).Build();
+        ProcessArguments command = new YtDlpCommandBuilder(_track, tempFileBase).Build();
         string ytDlpPath = ExecutableFinder.GetFullPath(SettingsManager.Current.YtDlpExe, SettingsManager.Current.YtDlpDir);
 
         try
@@ -1565,8 +1705,7 @@ internal class TrackProcessor
     {
         Log.Action($"{GetLogPrefix()}Processing: {track.Title}");
 
-        // Pass the coverFile to the builder so it can be embedded as an attached picture.
-        string command = new FfmpegCommandBuilder(track, inputFile, outputFile, coverFile).Build();
+        ProcessArguments command = new FfmpegCommandBuilder(track, inputFile, outputFile, coverFile).Build();
         string ffmpegPath = ExecutableFinder.GetFullPath(SettingsManager.Current.FfmpegExe, SettingsManager.Current.FfmpegDir);
 
         try
@@ -1595,7 +1734,6 @@ internal class TrackProcessor
             return;
         }
 
-        // Clean up everything starting with "temp." or "out."
         IEnumerable<string> tempFiles = Directory.EnumerateFiles(_albumDir, "temp.*")
             .Concat(Directory.EnumerateFiles(_albumDir, "out.*"));
 
@@ -1623,6 +1761,312 @@ internal enum TrackProcessStatus
     Skipped,
     Success,
     Failed
+}
+```
+
+---
+
+### `MusicDownloader.Tests\MusicDownloader.Tests.csproj`
+
+```xml
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="10.0.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="FluentAssertions" Version="8.10.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.6.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MusicDownloader\MusicDownloader.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>
+```
+
+---
+
+### `MusicDownloader.Tests\Commands\FfmpegCommandBuilderTests.cs`
+
+```csharp
+using FluentAssertions;
+using MusicDownloader.Commands;
+using MusicDownloader.Common;
+
+namespace MusicDownloader.Tests.Commands;
+
+public class FfmpegCommandBuilderTests
+{
+    [Fact]
+    public void Build_WithBasicTrack_ReturnsSimpleCommand()
+    {
+        Track track = new()
+        {
+            Title = "Song Title",
+            Artist = "Artist Name",
+            Album = "Album Name",
+            Source = "https://www.youtube.com/watch?v=123",
+            TrackNumber = 1,
+            Loop = 1
+        };
+
+        FfmpegCommandBuilder builder = new(track, "input.m4a", "output.m4a");
+        string command = builder.Build();
+
+        command.Should().Contain("-metadata title=\"Song Title\"");
+        command.Should().Contain("-metadata track=\"1\"");
+        command.Should().Contain("-c:a copy");
+    }
+
+    [Fact]
+    public void Build_WithLoop_ReturnsComplexFilter()
+    {
+        Track track = new()
+        {
+            Title = "Song Title",
+            Artist = "Artist Name",
+            Album = "Album Name",
+            Source = "https://www.youtube.com/watch?v=123",
+            Loop = 3,
+            Range = ["00:15", "01:30"]
+        };
+
+        FfmpegCommandBuilder builder = new(track, "input.m4a", "output.m4a");
+        string command = builder.Build();
+
+        command.Should().Contain("-filter_complex");
+        command.Should().Contain("aloop=loop=2");
+    }
+
+    [Fact]
+    public void Build_WithTempo_ReturnsTempoFilter()
+    {
+        Track track = new()
+        {
+            Title = "Song Title",
+            Artist = "Artist Name",
+            Album = "Album Name",
+            Source = "https://www.youtube.com/watch?v=123",
+            Tempo = 110.0
+        };
+
+        FfmpegCommandBuilder builder = new(track, "input.m4a", "output.m4a");
+        string command = builder.Build();
+
+        command.Should().Contain("-filter:a");
+    }
+}
+```
+
+---
+
+### `MusicDownloader.Tests\Commands\FlacFfmpegCommandBuilderTests.cs`
+
+```csharp
+using FluentAssertions;
+using MusicDownloader.Commands;
+
+namespace MusicDownloader.Tests.Commands;
+
+public class FlacFfmpegCommandBuilderTests
+{
+    [Fact]
+    public void Build_WithNoTempoAndNoRange_ReturnsCopyCommand()
+    {
+        FlacFfmpegCommandBuilder builder = new("input.flac", "output.flac", null, [], 44100);
+        string command = builder.Build();
+
+        command.Should().Contain("-c copy");
+    }
+
+    [Fact]
+    public void Build_WithTempo_ReturnsAtempoFilter()
+    {
+        FlacFfmpegCommandBuilder builder = new("input.flac", "output.flac", 110.0, [], 44100);
+        string command = builder.Build();
+
+        command.Should().Contain("-filter:a");
+        command.Should().Contain("-c:a flac");
+    }
+
+    [Fact]
+    public void Build_WithRange_ReturnsTrimCommand()
+    {
+        FlacFfmpegCommandBuilder builder = new("input.flac", "output.flac", null, ["00:15", "01:30"], 44100);
+        string command = builder.Build();
+
+        command.Should().Contain("-ss 00:15 -to 01:30");
+    }
+}
+```
+
+---
+
+### `MusicDownloader.Tests\Commands\YtpCommandBuilderTests.cs`
+
+```csharp
+using FluentAssertions;
+using MusicDownloader.Commands;
+using MusicDownloader.Common;
+using MusicDownloader.Infrastructure;
+
+namespace MusicDownloader.Tests.Commands;
+
+public sealed class YtDlpCommandBuilderTests
+{
+    private readonly Settings _originalSettings;
+
+    public YtDlpCommandBuilderTests()
+    {
+        _originalSettings = new Settings
+        {
+            CookiesBrowser = SettingsManager.Current.CookiesBrowser,
+            CookieFile = SettingsManager.Current.CookieFile,
+            FfmpegDir = SettingsManager.Current.FfmpegDir
+        };
+    }
+
+    [Fact]
+    public void Build_WithValidTrack_GeneratesYtDlpCommand()
+    {
+        // Arrange
+        Track track = new()
+        {
+            Title = "Download Track",
+            Source = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        };
+        SettingsManager.Current.CookiesBrowser = "";
+        SettingsManager.Current.CookieFile = "nonexistent_cookie_file.txt";
+        SettingsManager.Current.FfmpegDir = "";
+
+        YtDlpCommandBuilder builder = new(track, "temp_audio");
+
+        // Act
+        string command = builder.Build();
+
+        // Assert
+        command.Should().Contain("-f \"bestaudio[ext=m4a]/bestaudio\"");
+        command.Should().Contain("\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\"");
+        command.Should().Contain("--write-thumbnail");
+        command.Should().Contain("-o \"temp_audio.%(ext)s\"");
+        command.Should().NotContain("--cookies-from-browser");
+        command.Should().NotContain("--ffmpeg-location");
+    }
+
+    [Fact]
+    public void Build_WithBrowserCookiesAndFfmpegDir_IncludesFlags()
+    {
+        // Arrange
+        Track track = new()
+        {
+            Title = "Download Track",
+            Source = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        };
+        SettingsManager.Current.CookiesBrowser = "firefox";
+        SettingsManager.Current.FfmpegDir = @"C:\FfmpegPath";
+
+        YtDlpCommandBuilder builder = new(track, "temp_audio");
+
+        // Act
+        string command = builder.Build();
+
+        // Assert
+        command.Should().Contain("--cookies-from-browser firefox");
+        command.Should().Contain(@"--ffmpeg-location ""C:\FfmpegPath""");
+
+        // Clean up
+        SettingsManager.Current.CookiesBrowser = _originalSettings.CookiesBrowser;
+        SettingsManager.Current.FfmpegDir = _originalSettings.FfmpegDir;
+    }
+}
+```
+
+---
+
+### `MusicDownloader.Tests\Common\PathUtilsTests.cs`
+
+```csharp
+using FluentAssertions;
+using MusicDownloader.Common;
+
+namespace MusicDownloader.Tests.Common;
+
+public sealed class PathUtilsTests
+{
+    [Theory]
+    [InlineData("normal_filename.txt", "normal_filename.txt")]
+    [InlineData("file/name?with*invalid|chars.mp3", "file_name_with_invalid_chars.mp3")]
+    [InlineData("album: special <edition> .m4a", "album_ special _edition_ .m4a")]
+    [InlineData("", "")]
+    public void SafeFileName_WithVariousInputs_SanitizesInvalidPathCharacters(string input, string expected)
+    {
+        // Act
+        string result = PathUtils.SafeFileName(input);
+
+        // Assert
+        result.Should().Be(expected);
+    }
+}
+```
+
+---
+
+### `MusicDownloader.Tests\Common\TrackParserTests.cs`
+
+```csharp
+using FluentAssertions;
+using MusicDownloader.Common;
+
+namespace MusicDownloader.Tests.Common;
+
+public class TrackParserTests
+{
+    [Theory]
+    [InlineData("00:15-01:30", "00:15", "01:30")]
+    [InlineData("15-90", "15", "90")]
+    public void TryParseRange_WithValidRange_ReturnsTrueAndOutputsStartAndEnd(string range, string expectedStart, string expectedEnd)
+    {
+        bool result = TrackParser.TryParseRange(range, out string start, out string end);
+
+        result.Should().BeTrue();
+        start.Should().Be(expectedStart);
+        end.Should().Be(expectedEnd);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("00:15")]
+    [InlineData("00:15-")]
+    [InlineData("-01:30")]
+    [InlineData("00:15-01:30-02:00")]
+    public void TryParseRange_WithInvalidRange_ReturnsFalseAndOutputsEmptyStrings(string range)
+    {
+        bool result = TrackParser.TryParseRange(range, out string start, out string end);
+
+        result.Should().BeFalse();
+        start.Should().BeEmpty();
+        end.Should().BeEmpty();
+    }
 }
 ```
 

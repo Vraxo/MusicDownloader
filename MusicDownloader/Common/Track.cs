@@ -8,7 +8,7 @@ internal sealed record Track
 
     public int? TrackNumber { get; init; } = null;
     public string Title { get; init; } = string.Empty;
-    public DateTime? Date { get; init; } = null;
+    public string? Date { get; init; } = null;
 
     public string Source { get; init; } = string.Empty;
 

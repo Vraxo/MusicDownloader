@@ -1,4 +1,4 @@
-namespace MusicDownloader.Common;
+﻿namespace MusicDownloader.Common;
 
 internal sealed class SongCollection
 {

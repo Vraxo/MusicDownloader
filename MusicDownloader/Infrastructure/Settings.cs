@@ -26,5 +26,5 @@ internal sealed class Settings
 
     public int DelayBetweenDownloadsMs { get; set; } = 2500;
 
-    public string? CookiesBrowser { get; set; } = "chrome";
+    public string? CookiesBrowser { get; set; } = null;
 }

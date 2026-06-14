@@ -34,7 +34,9 @@ internal static class SettingsManager
         }
         catch (Exception ex)
         {
-            Log.Warning($"Failed to load or write '{SettingsFile}'. Using default settings. Error: {ex.Message}");
+            Log.Warning(
+                $"Failed to load or write '{SettingsFile}'." +
+                $"Using default settings. Error: {ex.Message}");
         }
 
         Current = settings;

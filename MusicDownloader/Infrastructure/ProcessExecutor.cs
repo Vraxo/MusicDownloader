@@ -23,16 +23,18 @@ internal class ProcessExecutor
 
             proc.ErrorDataReceived += (_, e) =>
             {
-                if (!string.IsNullOrEmpty(e.Data))
+                if (string.IsNullOrEmpty(e.Data))
                 {
-                    if (stdErrHandler is not null)
-                    {
-                        stdErrHandler(e.Data);
-                    }
-                    else
-                    {
-                        HandleStdErr(e.Data);
-                    }
+                    return;
+                }
+
+                if (stdErrHandler is not null)
+                {
+                    stdErrHandler(e.Data);
+                }
+                else
+                {
+                    HandleStdErr(e.Data);
                 }
             };
 
@@ -124,6 +126,13 @@ internal class ProcessExecutor
 
     private static void HandleStdErr(string data)
     {
+        if (data.Contains("DPAPI", StringComparison.OrdinalIgnoreCase))
+        {
+            Log.Error("Chrome cookie extraction failed due to a recent Google Chrome update.");
+            Log.Error("Solution: Open 'Data/settings.toml', set CookiesBrowser = \"\", and use 'Cookies.txt' instead.");
+            return;
+        }
+
         if (data.Contains("error", StringComparison.OrdinalIgnoreCase) ||
             data.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
             data.Contains("fatal", StringComparison.OrdinalIgnoreCase))

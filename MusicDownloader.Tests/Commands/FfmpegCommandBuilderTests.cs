@@ -64,4 +64,22 @@ public class FfmpegCommandBuilderTests
 
         command.Should().Contain("-filter:a");
     }
+
+    [Fact]
+    public void BuildMetadataUpdate_WithValidTrack_ReturnsCopyCommand()
+    {
+        Track track = new()
+        {
+            Title = "Song Title",
+            Artist = "Artist Name",
+            Album = "Album Name"
+        };
+
+        FfmpegCommandBuilder builder = new(track, "input.m4a", "output.m4a");
+        string command = builder.BuildMetadataUpdate("input.m4a", "output.m4a");
+
+        command.Should().Contain("-metadata title=\"Song Title\"");
+        command.Should().Contain("-c copy");
+        command.Should().Contain("-map 0");
+    }
 }

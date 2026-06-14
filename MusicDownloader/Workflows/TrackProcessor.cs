@@ -67,7 +67,7 @@ internal class TrackProcessor
             }
 
             File.Move(finalTempOut, outputFile, true);
-            Log.Success($"{GetLogPrefix()}Done: {_track.Title}");
+            Log.Success($"{GetLogPrefix()}Done: {_track.Title} -> {outputFile}");
             return TrackProcessStatus.Success;
         }
         catch (Exception ex)

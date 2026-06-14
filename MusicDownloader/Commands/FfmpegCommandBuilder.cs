@@ -122,6 +122,14 @@ internal sealed class FfmpegCommandBuilder
         return args;
     }
 
+    public ProcessArguments BuildMetadataUpdate(string inputFile, string outputFile)
+    {
+        List<string> args = ["-y", "-i", inputFile, "-map", "0"];
+        args.AddRange(BuildMetadataArgs());
+        args.AddRange(["-map_metadata", "-1", "-c", "copy", outputFile]);
+        return args;
+    }
+
     private List<string> BuildMetadataArgs()
     {
         List<string> meta = [];
@@ -140,9 +148,9 @@ internal sealed class FfmpegCommandBuilder
             meta.AddRange(["-metadata", $"disc={_track.DiscNumber.Value}"]);
         }
 
-        if (_track.Date.HasValue)
+        if (!string.IsNullOrWhiteSpace(_track.Date))
         {
-            meta.AddRange(["-metadata", $"date={_track.Date.Value:yyyy-MM-dd}"]);
+            meta.AddRange(["-metadata", $"date={_track.Date}"]);
         }
 
         if (_track.Tags.Count > 0)
