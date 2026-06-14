@@ -8,6 +8,8 @@ internal sealed class Log
     private const ConsoleColor ActionColor = ConsoleColor.Cyan;
     private const ConsoleColor SuccessColor = ConsoleColor.Green;
 
+    private static readonly Lock LockObj = new();
+
     public static void Info(string message)
     {
         Print(InfoColor, message);
@@ -15,12 +17,12 @@ internal sealed class Log
 
     public static void Warning(string message)
     {
-        Print(WarningColor, message);
+        Print(WarningColor, message, isError: true);
     }
 
     public static void Error(string message)
     {
-        Print(ErrorColor, message);
+        Print(ErrorColor, message, isError: true);
     }
 
     public static void Action(string message)
@@ -33,10 +35,20 @@ internal sealed class Log
         Print(SuccessColor, message);
     }
 
-    private static void Print(ConsoleColor color, string message)
+    private static void Print(ConsoleColor color, string message, bool isError = false)
     {
-        Console.ForegroundColor = color;
-        Console.WriteLine(message);
-        Console.ResetColor();
+        lock (LockObj)
+        {
+            Console.ForegroundColor = color;
+            if (isError)
+            {
+                Console.Error.WriteLine(message);
+            }
+            else
+            {
+                Console.Out.WriteLine(message);
+            }
+            Console.ResetColor();
+        }
     }
 }
