@@ -96,12 +96,25 @@ internal static class AutomaticProcessor
 
             Console.Write("\rVerifying metadata: [");
 
-            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.ForegroundColor = GetProgressColor(percent);
             Console.Write(filled);
 
             Console.ResetColor();
             Console.Write($"{empty}] {percent:0}% ({current}/{total})");
         }
+    }
+
+    private static ConsoleColor GetProgressColor(double percent)
+    {
+        if (percent >= 90.0)
+        {
+            return ConsoleColor.Green;
+        }
+        if (percent >= 50.0)
+        {
+            return ConsoleColor.Yellow;
+        }
+        return ConsoleColor.Cyan;
     }
 
     private static void ClearCurrentLine()
