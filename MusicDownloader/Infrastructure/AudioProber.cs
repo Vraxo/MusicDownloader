@@ -1,4 +1,5 @@
 ﻿using MusicDownloader.Common;
+using Spectre.Console;
 using System.Globalization;
 
 namespace MusicDownloader.Infrastructure;
@@ -59,29 +60,50 @@ internal static class AudioProber
         }
         catch
         {
-            // Fail silently, return empty tags
         }
 
         return tags;
     }
 
-    public static bool IsMetadataUpToDate(string filePath, Track track)
+    private static string Clean(string? val)
+    {
+        if (val is null)
+        {
+            return string.Empty;
+        }
+        return val.Trim().Replace("\r", "").Replace("\n", "");
+    }
+
+    public static bool IsMetadataUpToDate(string filePath, Track track, out string? mismatchReason)
     {
         Dictionary<string, string> existing = GetMetadata(filePath);
+        List<string> mismatches = [];
 
-        if (!existing.TryGetValue("title", out string? title) || !string.Equals(title, track.Title, StringComparison.Ordinal))
+        if (!existing.TryGetValue("title", out string? title))
         {
-            return false;
+            title = string.Empty;
+        }
+        if (!string.Equals(Clean(title), Clean(track.Title), StringComparison.Ordinal))
+        {
+            mismatches.Add($"[gray]    - Title: '[/][red]{Clean(title).EscapeMarkup()}[/][gray]' -> '[/][green]{Clean(track.Title).EscapeMarkup()}[/][gray]'[/]");
         }
 
-        if (!existing.TryGetValue("artist", out string? artist) || !string.Equals(artist, track.Artist, StringComparison.Ordinal))
+        if (!existing.TryGetValue("artist", out string? artist))
         {
-            return false;
+            artist = string.Empty;
+        }
+        if (!string.Equals(Clean(artist), Clean(track.Artist), StringComparison.Ordinal))
+        {
+            mismatches.Add($"[gray]    - Artist: '[/][red]{Clean(artist).EscapeMarkup()}[/][gray]' -> '[/][green]{Clean(track.Artist).EscapeMarkup()}[/][gray]'[/]");
         }
 
-        if (!existing.TryGetValue("album", out string? album) || !string.Equals(album, track.Album, StringComparison.Ordinal))
+        if (!existing.TryGetValue("album", out string? album))
         {
-            return false;
+            album = string.Empty;
+        }
+        if (!string.Equals(Clean(album), Clean(track.Album), StringComparison.Ordinal))
+        {
+            mismatches.Add($"[gray]    - Album: '[/][red]{Clean(album).EscapeMarkup()}[/][gray]' -> '[/][green]{Clean(track.Album).EscapeMarkup()}[/][gray]'[/]");
         }
 
         string expectedTrack = track.TrackNumber?.ToString() ?? string.Empty;
@@ -90,9 +112,9 @@ internal static class AudioProber
         {
             existingTrack = existingTrack.Split('/')[0];
         }
-        if (!string.Equals(existingTrack ?? string.Empty, expectedTrack, StringComparison.Ordinal))
+        if (!string.Equals(Clean(existingTrack), Clean(expectedTrack), StringComparison.Ordinal))
         {
-            return false;
+            mismatches.Add($"[gray]    - Track: '[/][red]{Clean(existingTrack).EscapeMarkup()}[/][gray]' -> '[/][green]{Clean(expectedTrack).EscapeMarkup()}[/][gray]'[/]");
         }
 
         string expectedDisc = track.DiscNumber?.ToString() ?? string.Empty;
@@ -101,30 +123,38 @@ internal static class AudioProber
         {
             existingDisc = existingDisc.Split('/')[0];
         }
-        if (!string.Equals(existingDisc ?? string.Empty, expectedDisc, StringComparison.Ordinal))
+        if (!string.Equals(Clean(existingDisc), Clean(expectedDisc), StringComparison.Ordinal))
         {
-            return false;
+            mismatches.Add($"[gray]    - Disc: '[/][red]{Clean(existingDisc).EscapeMarkup()}[/][gray]' -> '[/][green]{Clean(expectedDisc).EscapeMarkup()}[/][gray]'[/]");
         }
 
         existing.TryGetValue("date", out string? existingDate);
-        if (!string.Equals(existingDate ?? string.Empty, track.Date ?? string.Empty, StringComparison.Ordinal))
+        string expectedDate = track.Date ?? string.Empty;
+        if (!string.Equals(Clean(existingDate), Clean(expectedDate), StringComparison.Ordinal))
         {
-            return false;
+            mismatches.Add($"[gray]    - Date: '[/][red]{Clean(existingDate).EscapeMarkup()}[/][gray]' -> '[/][green]{Clean(expectedDate).EscapeMarkup()}[/][gray]'[/]");
         }
 
         string expectedGenre = track.Tags.Count > 0 ? string.Join(", ", track.Tags) : string.Empty;
         existing.TryGetValue("genre", out string? existingGenre);
-        if (!string.Equals(existingGenre ?? string.Empty, expectedGenre, StringComparison.Ordinal))
+        if (!string.Equals(Clean(existingGenre), Clean(expectedGenre), StringComparison.Ordinal))
         {
-            return false;
+            mismatches.Add($"[gray]    - Genre: '[/][red]{Clean(existingGenre).EscapeMarkup()}[/][gray]' -> '[/][green]{Clean(expectedGenre).EscapeMarkup()}[/][gray]'[/]");
         }
 
         existing.TryGetValue("comment", out string? existingComment);
-        if (!string.Equals(existingComment ?? string.Empty, track.Source, StringComparison.Ordinal))
+        if (!string.Equals(Clean(existingComment), Clean(track.Source), StringComparison.Ordinal))
         {
+            mismatches.Add($"[gray]    - Comment/Source: '[/][red]{Clean(existingComment).EscapeMarkup()}[/][gray]' -> '[/][green]{Clean(track.Source).EscapeMarkup()}[/][gray]'[/]");
+        }
+
+        if (mismatches.Count > 0)
+        {
+            mismatchReason = string.Join(Environment.NewLine, mismatches);
             return false;
         }
 
+        mismatchReason = null;
         return true;
     }
 

@@ -1,12 +1,11 @@
 ﻿using MusicDownloader.Common;
 using MusicDownloader.Infrastructure;
+using Spectre.Console;
 
 namespace MusicDownloader.Workflows;
 
 internal static class AutomaticProcessor
 {
-    private static readonly object ConsoleLock = new();
-
     public static async Task RunAsync()
     {
         List<Track> allTracks = await TomlTrackReader.ReadAllTracksAsync();
@@ -15,9 +14,7 @@ internal static class AutomaticProcessor
             return;
         }
 
-        Console.WriteLine();
-
-        (List<Track> pendingTracks, int alreadyDownloadedCount) = await FilterPendingTracksAsync(allTracks);
+        (List<Track> pendingTracks, int alreadyDownloadedCount, int metadataUpdatesCount, int newDownloadsCount) = await FilterPendingTracksAsync(allTracks);
 
         if (pendingTracks.Count == 0)
         {
@@ -25,111 +22,102 @@ internal static class AutomaticProcessor
             return;
         }
 
-        PrintPreFlightStats(allTracks.Count, alreadyDownloadedCount, pendingTracks.Count);
+        PrintPreFlightStats(allTracks.Count, alreadyDownloadedCount, pendingTracks.Count, metadataUpdatesCount, newDownloadsCount);
 
         (int downloaded, int metadataUpdated, int failed, int updatedCount) = await ProcessQueueAsync(pendingTracks, alreadyDownloadedCount);
 
-        Console.WriteLine();
-        Log.Success(
-            $"Processing finished: {downloaded} newly downloaded, {metadataUpdated} metadata updated, {failed} failed. " +
-            $"({updatedCount} were already up to date)");
+        PrintPostFlightStats(downloaded, metadataUpdated, failed, updatedCount);
+        Log.Success("All downloads and processing finished.");
     }
 
-    private static async Task<(List<Track> Pending, int UpToDate)> FilterPendingTracksAsync(IReadOnlyList<Track> tracks)
+    private static async Task<(List<Track> Pending, int UpToDate, int MetadataUpdates, int NewDownloads)> FilterPendingTracksAsync(IReadOnlyList<Track> tracks)
     {
         List<Track> pending = [];
         int upToDate = 0;
-        int completed = 0;
+        int metadataUpdates = 0;
+        int newDownloads = 0;
         int total = tracks.Count;
 
         if (total == 0)
         {
-            return (pending, upToDate);
+            return (pending, upToDate, metadataUpdates, newDownloads);
         }
-
-        Log.Info("Verifying downloaded tracks...");
-        UpdateProgressBar(0, total);
 
         object lockObj = new();
 
-        await Parallel.ForEachAsync(tracks, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, async (track, cancellationToken) =>
-        {
-            string outputFile = TrackProcessor.GetOutputFile(track);
-            bool isUpToDate = false;
-
-            if (File.Exists(outputFile))
+        await AnsiConsole.Progress()
+            .Columns([
+                new TaskDescriptionColumn(),
+                new ProgressBarColumn(),
+                new PercentageColumn(),
+                new RemainingTimeColumn(),
+                new SpinnerColumn()
+            ])
+            .StartAsync(async ctx =>
             {
-                isUpToDate = AudioProber.IsMetadataUpToDate(outputFile, track);
-            }
+                ProgressTask progressTask = ctx.AddTask("[cyan]Verifying metadata[/]", autoStart: true, maxValue: total);
 
-            int currentCompleted = Interlocked.Increment(ref completed);
-            UpdateProgressBar(currentCompleted, total);
-
-            lock (lockObj)
-            {
-                if (isUpToDate)
+                await Parallel.ForEachAsync(tracks, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, async (track, cancellationToken) =>
                 {
-                    upToDate++;
-                }
-                else
-                {
-                    pending.Add(track);
-                }
-            }
-        });
+                    string outputFile = TrackProcessor.GetOutputFile(track);
+                    bool isUpToDate = false;
+                    bool isNewDownload = true;
 
-        ClearCurrentLine();
+                    if (File.Exists(outputFile))
+                    {
+                        isNewDownload = false;
+                        isUpToDate = AudioProber.IsMetadataUpToDate(outputFile, track, out _);
+                    }
 
-        return (pending, upToDate);
+                    progressTask.Increment(1);
+
+                    lock (lockObj)
+                    {
+                        if (isUpToDate)
+                        {
+                            upToDate++;
+                        }
+                        else
+                        {
+                            pending.Add(track);
+                            if (isNewDownload)
+                            {
+                                newDownloads++;
+                            }
+                            else
+                            {
+                                metadataUpdates++;
+                            }
+                        }
+                    }
+                });
+            });
+
+        return (pending, upToDate, metadataUpdates, newDownloads);
     }
 
-    private static void UpdateProgressBar(int current, int total)
+    private static void PrintPreFlightStats(int total, int upToDate, int pending, int metadataUpdates, int newDownloads)
     {
-        lock (ConsoleLock)
-        {
-            double percent = (double)current / total * 100;
-            int barWidth = 30;
-            int filledWidth = (int)Math.Round(percent / 100 * barWidth);
-
-            string filled = new('█', filledWidth);
-            string empty = new('░', barWidth - filledWidth);
-
-            Console.Write("\rVerifying metadata: [");
-
-            Console.ForegroundColor = GetProgressColor(percent);
-            Console.Write(filled);
-
-            Console.ResetColor();
-            Console.Write($"{empty}] {percent:0}% ({current}/{total})");
-        }
+        AnsiConsole.MarkupLine($"[gray]Database tracks:[/] [white]{total}[/]");
+        AnsiConsole.MarkupLine($"[gray]Up to date:[/]      [white]{upToDate}[/]");
+        AnsiConsole.MarkupLine($"[cyan]Pending actions:[/]  [white]{pending}[/] [gray]({metadataUpdates} metadata updates, {newDownloads} new downloads)[/]");
+        Console.WriteLine();
     }
 
-    private static ConsoleColor GetProgressColor(double percent)
+    private static void PrintPostFlightStats(int downloaded, int metadataUpdated, int failed, int upToDate)
     {
-        if (percent >= 90.0)
+        AnsiConsole.MarkupLine("[green]Processing results:[/]");
+        AnsiConsole.MarkupLine($"[gray]  Newly downloaded:[/] [white]{downloaded}[/]");
+        AnsiConsole.MarkupLine($"[gray]  Metadata updated:[/] [white]{metadataUpdated}[/]");
+        if (failed > 0)
         {
-            return ConsoleColor.Green;
+            AnsiConsole.MarkupLine($"[yellow]  Failed downloads:[/] [white]{failed}[/]");
         }
-        if (percent >= 50.0)
+        else
         {
-            return ConsoleColor.Yellow;
+            AnsiConsole.MarkupLine($"[gray]  Failed downloads:[/] [white]{failed}[/]");
         }
-        return ConsoleColor.Cyan;
-    }
-
-    private static void ClearCurrentLine()
-    {
-        lock (ConsoleLock)
-        {
-            Console.Write($"\r{new string(' ', 79)}\r");
-        }
-    }
-
-    private static void PrintPreFlightStats(int total, int upToDate, int pending)
-    {
-        Log.Info($"Database tracks: {total}");
-        Log.Info($"Up to date:      {upToDate}");
-        Log.Action($"Pending:         {pending}");
+        AnsiConsole.MarkupLine($"[gray]  Up to date:[/]       [white]{upToDate}[/]");
         Console.WriteLine();
     }
 
@@ -170,6 +158,11 @@ internal static class AutomaticProcessor
                 case TrackProcessStatus.MetadataUpdated:
                     metadataUpdated++;
                     break;
+            }
+
+            if (status != TrackProcessStatus.Skipped)
+            {
+                Console.WriteLine();
             }
 
             bool downloadAttempted = status == TrackProcessStatus.Success;

@@ -17,7 +17,7 @@ internal class ProcessExecutor
             {
                 if (!string.IsNullOrEmpty(e.Data))
                 {
-                    if (!IsProgressLine(e.Data))
+                    if (!IsProgressLine(e.Data) && !IsNoiseLine(e.Data))
                     {
                         Log.Info(e.Data);
                     }
@@ -115,6 +115,8 @@ internal class ProcessExecutor
                 FileName = exe,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8,
                 UseShellExecute = false,
                 CreateNoWindow = true
             }
@@ -158,12 +160,48 @@ internal class ProcessExecutor
         return false;
     }
 
+    private static bool IsNoiseLine(string line)
+    {
+        if (string.IsNullOrWhiteSpace(line))
+        {
+            return true;
+        }
+
+        if (line.StartsWith("[youtube]", StringComparison.OrdinalIgnoreCase) ||
+            line.StartsWith("[generic]", StringComparison.OrdinalIgnoreCase) ||
+            line.StartsWith("[info]", StringComparison.OrdinalIgnoreCase) ||
+            line.StartsWith("[download] Destination:", StringComparison.OrdinalIgnoreCase) ||
+            line.StartsWith("[ExtractAudio]", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (line.Contains("The url doesn't specify the protocol", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
     private static void HandleStdErr(string data)
     {
+        if (IsNoiseLine(data))
+        {
+            return;
+        }
+
         if (data.Contains("DPAPI", StringComparison.OrdinalIgnoreCase))
         {
             Log.Error("Chrome cookie extraction failed due to a recent Google Chrome update.");
             Log.Error("Solution: Open 'Data/settings.toml', set CookiesBrowser = \"\", and use 'Cookies.txt' instead.");
+            return;
+        }
+
+        if (data.Contains("Sign in to confirm", StringComparison.OrdinalIgnoreCase) ||
+            (data.Contains("confirm", StringComparison.OrdinalIgnoreCase) && data.Contains("not a bot", StringComparison.OrdinalIgnoreCase)))
+        {
+            Log.Error("ERROR: YouTube bot verification requested. Please configure 'CookiesBrowser' or 'CookieFile' in 'Data/settings.toml'.");
             return;
         }
 

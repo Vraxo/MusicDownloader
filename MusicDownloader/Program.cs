@@ -1,6 +1,9 @@
 using MusicDownloader.Common;
 using MusicDownloader.Infrastructure;
 using MusicDownloader.Workflows;
+using System.Text;
+
+Console.OutputEncoding = Encoding.UTF8;
 
 try
 {
@@ -26,7 +29,6 @@ try
     {
         Log.Info("Starting download processing... (use 'playlist' or 'process' arguments for other tools)");
         await AutomaticProcessor.RunAsync();
-        Log.Success("All downloads and processing finished.");
     }
 }
 catch (Exception ex)

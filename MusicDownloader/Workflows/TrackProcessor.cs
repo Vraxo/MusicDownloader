@@ -1,6 +1,7 @@
 ﻿using MusicDownloader.Commands;
 using MusicDownloader.Common;
 using MusicDownloader.Infrastructure;
+using Spectre.Console;
 using System.ComponentModel;
 
 namespace MusicDownloader.Workflows;
@@ -35,13 +36,20 @@ internal class TrackProcessor
 
         if (File.Exists(outputFile))
         {
-            if (AudioProber.IsMetadataUpToDate(outputFile, _track))
+            if (AudioProber.IsMetadataUpToDate(outputFile, _track, out string? mismatch))
             {
                 return TrackProcessStatus.Skipped;
             }
 
-            Log.Action($"{GetLogPrefix()}Metadata is out of date for: {_track.Title}. Updating in-place...");
             bool updated = await UpdateMetadataInPlaceAsync(outputFile);
+            if (updated)
+            {
+                AnsiConsole.MarkupLine($"{GetLogPrefix().EscapeMarkup()}[green]Updated metadata: [white]{_track.Title.EscapeMarkup()}[/][/]");
+                if (!string.IsNullOrEmpty(mismatch))
+                {
+                    AnsiConsole.MarkupLine(mismatch);
+                }
+            }
             return updated ? TrackProcessStatus.MetadataUpdated : TrackProcessStatus.Failed;
         }
 
@@ -50,7 +58,7 @@ internal class TrackProcessor
 
         try
         {
-            Log.Action($"{GetLogPrefix()}Downloading & processing: {_track.Title}");
+            AnsiConsole.MarkupLine($"{GetLogPrefix().EscapeMarkup()}[cyan]Downloading & processing: [white]{_track.Title.EscapeMarkup()}[/][/]");
 
             if (!await RunFullDownloadAsync(tempFileBase))
             {
@@ -60,14 +68,14 @@ internal class TrackProcessor
             string? downloadedAudio = FindDownloadedFile(tempFileBase);
             if (downloadedAudio is null)
             {
-                Log.Error($"{GetLogPrefix()}Download reported success, but no audio file was found.");
+                AnsiConsole.MarkupLine($"[red]Download reported success, but no audio file was found.[/]");
                 return TrackProcessStatus.Failed;
             }
 
             string? downloadedCover = FindCoverFile(tempFileBase);
             if (downloadedCover is not null)
             {
-                Log.Info($"{GetLogPrefix()}Found cover art: {Path.GetFileName(downloadedCover)}");
+                Log.Info($"Found cover art: {Path.GetFileName(downloadedCover)}");
             }
 
             if (!await ProcessAudioAsync(_track, downloadedAudio, downloadedCover, finalTempOut))
@@ -76,18 +84,17 @@ internal class TrackProcessor
             }
 
             File.Move(finalTempOut, outputFile, true);
-            Log.Success($"{GetLogPrefix()}Done: {_track.Title} -> {outputFile}");
+            AnsiConsole.MarkupLine($"[green]Done[/] -> {outputFile.EscapeMarkup()}");
             return TrackProcessStatus.Success;
         }
         catch (Exception ex)
         {
-            Log.Error($"{GetLogPrefix()}Failed processing '{_track.Title}': {ex.Message}");
+            AnsiConsole.MarkupLine($"[red]Failed processing: {ex.Message.EscapeMarkup()}[/]");
             return TrackProcessStatus.Failed;
         }
         finally
         {
             CleanupTempFiles();
-            Console.WriteLine();
         }
     }
 
@@ -134,7 +141,7 @@ internal class TrackProcessor
 
             if (exitCode != 0)
             {
-                Log.Error($"{GetLogPrefix()}Download failed for {_track.Title}.");
+                AnsiConsole.MarkupLine($"[red]Download failed.[/]");
                 return false;
             }
 
@@ -142,7 +149,7 @@ internal class TrackProcessor
         }
         catch (Win32Exception)
         {
-            Log.Error($"{GetLogPrefix()}Could not find '{SettingsManager.Current.YtDlpExe}'.");
+            AnsiConsole.MarkupLine($"[red]Could not find '{SettingsManager.Current.YtDlpExe}'.[/]");
             return false;
         }
     }
@@ -158,13 +165,13 @@ internal class TrackProcessor
 
             if (exitCode != 0)
             {
-                Log.Error($"{GetLogPrefix()}ffmpeg processing failed for {track.Title}.");
+                AnsiConsole.MarkupLine($"[red]ffmpeg processing failed.[/]");
                 return false;
             }
         }
         catch (Win32Exception)
         {
-            Log.Error($"{GetLogPrefix()}Could not find '{SettingsManager.Current.FfmpegExe}'.");
+            AnsiConsole.MarkupLine($"[red]Could not find '{SettingsManager.Current.FfmpegExe}'.[/]");
             return false;
         }
 
@@ -185,17 +192,16 @@ internal class TrackProcessor
 
             if (exitCode != 0)
             {
-                Log.Error($"{GetLogPrefix()}ffmpeg metadata update failed for {_track.Title}.");
+                AnsiConsole.MarkupLine($"[red]ffmpeg metadata update failed.[/]");
                 return false;
             }
 
             File.Move(tempFile, outputFile, true);
-            Log.Success($"{GetLogPrefix()}Successfully updated metadata for: {_track.Title}");
             return true;
         }
         catch (Exception ex)
         {
-            Log.Error($"{GetLogPrefix()}Failed to update metadata in-place for '{_track.Title}': {ex.Message}");
+            AnsiConsole.MarkupLine($"[red]Failed to update metadata in-place: {ex.Message.EscapeMarkup()}[/]");
             return false;
         }
         finally
