@@ -63,36 +63,16 @@ internal sealed class ProcessArguments : IReadOnlyList<string>
             }
         }
 
-        if (!NeedsQuoting(arg))
-        {
-            return arg;
-        }
-
-        return $"\"{arg.Replace("\"", "\\\"")}\"";
+        return NeedsQuoting(arg) ? $"\"{arg.Replace("\"", "\\\"")}\"" : arg;
     }
 
     private static bool NeedsQuoting(string arg)
     {
-        foreach (char c in arg)
-        {
-            if (!char.IsLetterOrDigit(c) && c != '-' && c != '_' && c != ':')
-            {
-                return true;
-            }
-        }
-        return false;
+        return arg.Any(c => !char.IsLetterOrDigit(c) && c != '-' && c != '_' && c != ':');
     }
 
     private static bool IsMetadataKey(string key)
     {
-        return key
-            is "title"
-            or "artist"
-            or "album"
-            or "track"
-            or "disc"
-            or "date"
-            or "genre"
-            or "comment";
+        return key is "title" or "artist" or "album" or "track" or "disc" or "date" or "genre" or "comment";
     }
 }
