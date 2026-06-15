@@ -28,8 +28,7 @@ internal static class AudioProber
 
     public static Dictionary<string, string> GetMetadata(string inputFile)
     {
-        string ffprobeExe = SettingsManager.Current.FfmpegExe.Replace("ffmpeg", "ffprobe");
-        string ffprobePath = ExecutableFinder.GetFullPath(ffprobeExe, SettingsManager.Current.FfmpegDir);
+        string ffprobePath = ExecutableFinder.GetFfprobePath();
 
         string[] args = [
             "-v", "error",
@@ -67,11 +66,7 @@ internal static class AudioProber
 
     private static string Clean(string? val)
     {
-        if (val is null)
-        {
-            return string.Empty;
-        }
-        return val.Trim().Replace("\r", "").Replace("\n", "");
+        return val is null ? string.Empty : val.Trim().Replace("\r", "").Replace("\n", "");
     }
 
     public static bool IsMetadataUpToDate(string filePath, Track track, out string? mismatchReason)
@@ -125,8 +120,7 @@ internal static class AudioProber
 
     private static T RunProbe<T>(string inputFile, string entries, Func<string, T> parser)
     {
-        string ffprobeExe = SettingsManager.Current.FfmpegExe.Replace("ffmpeg", "ffprobe");
-        string ffprobePath = ExecutableFinder.GetFullPath(ffprobeExe, SettingsManager.Current.FfmpegDir);
+        string ffprobePath = ExecutableFinder.GetFfprobePath();
 
         string[] args = [
             "-v", "error",

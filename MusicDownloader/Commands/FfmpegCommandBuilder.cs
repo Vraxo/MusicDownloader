@@ -181,7 +181,7 @@ internal sealed class FfmpegCommandBuilder
             return $"atempo={tempoMultiplier.ToString("0.000", CultureInfo.InvariantCulture)}";
         }
 
-        int newSampleRate = (int)Math.Round(48000 * tempoMultiplier);
+        int newSampleRate = (int)double.Round(48000 * tempoMultiplier);
         return $"asetrate={newSampleRate}";
     }
 }

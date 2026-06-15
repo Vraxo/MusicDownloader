@@ -22,7 +22,6 @@ public sealed class YtDlpCommandBuilderTests
     [Fact]
     public void Build_WithValidTrack_GeneratesYtDlpCommand()
     {
-        // Arrange
         Track track = new()
         {
             Title = "Download Track",
@@ -34,10 +33,8 @@ public sealed class YtDlpCommandBuilderTests
 
         YtDlpCommandBuilder builder = new(track, "temp_audio");
 
-        // Act
         string command = builder.Build();
 
-        // Assert
         command.Should().Contain("-f \"bestaudio[ext=m4a]/bestaudio\"");
         command.Should().Contain("\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\"");
         command.Should().Contain("--write-thumbnail");
@@ -49,7 +46,6 @@ public sealed class YtDlpCommandBuilderTests
     [Fact]
     public void Build_WithBrowserCookiesAndFfmpegDir_IncludesFlags()
     {
-        // Arrange
         Track track = new()
         {
             Title = "Download Track",
@@ -60,14 +56,11 @@ public sealed class YtDlpCommandBuilderTests
 
         YtDlpCommandBuilder builder = new(track, "temp_audio");
 
-        // Act
         string command = builder.Build();
 
-        // Assert
         command.Should().Contain("--cookies-from-browser firefox");
         command.Should().Contain(@"--ffmpeg-location ""C:\FfmpegPath""");
 
-        // Clean up
         SettingsManager.Current.CookiesBrowser = _originalSettings.CookiesBrowser;
         SettingsManager.Current.FfmpegDir = _originalSettings.FfmpegDir;
     }

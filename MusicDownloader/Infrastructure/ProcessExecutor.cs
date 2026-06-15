@@ -15,29 +15,23 @@ internal class ProcessExecutor
 
             proc.OutputDataReceived += (_, e) =>
             {
-                if (!string.IsNullOrEmpty(e.Data))
+                if (!string.IsNullOrEmpty(e.Data) && !IsProgressLine(e.Data) && !IsNoiseLine(e.Data))
                 {
-                    if (!IsProgressLine(e.Data) && !IsNoiseLine(e.Data))
-                    {
-                        Log.Info(e.Data);
-                    }
+                    Log.Info(e.Data);
                 }
             };
 
             proc.ErrorDataReceived += (_, e) =>
             {
-                if (!string.IsNullOrEmpty(e.Data))
+                if (!string.IsNullOrEmpty(e.Data) && !IsProgressLine(e.Data))
                 {
-                    if (!IsProgressLine(e.Data))
+                    if (stdErrHandler is not null)
                     {
-                        if (stdErrHandler is not null)
-                        {
-                            stdErrHandler(e.Data);
-                        }
-                        else
-                        {
-                            HandleStdErr(e.Data);
-                        }
+                        stdErrHandler(e.Data);
+                    }
+                    else
+                    {
+                        HandleStdErr(e.Data);
                     }
                 }
             };
@@ -71,21 +65,17 @@ internal class ProcessExecutor
 
             proc.OutputDataReceived += (_, e) =>
             {
-                if (e.Data is null)
+                if (e.Data is not null)
                 {
-                    return;
+                    output.AppendLine(e.Data);
                 }
-
-                output.AppendLine(e.Data);
             };
             proc.ErrorDataReceived += (_, e) =>
             {
-                if (e.Data is null)
+                if (e.Data is not null)
                 {
-                    return;
+                    error.AppendLine(e.Data);
                 }
-
-                error.AppendLine(e.Data);
             };
 
             proc.Start();
@@ -137,27 +127,10 @@ internal class ProcessExecutor
             return false;
         }
 
-        if (line.Contains("[download]", StringComparison.OrdinalIgnoreCase) && line.Contains('%'))
-        {
-            return true;
-        }
-
-        if (line.Contains("[frag]", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (line.Contains("frame=", StringComparison.OrdinalIgnoreCase) && line.Contains("fps=", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (line.Contains("size=", StringComparison.OrdinalIgnoreCase) && line.Contains("time=", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return false;
+        return (line.Contains("[download]", StringComparison.OrdinalIgnoreCase) && line.Contains('%'))
+            || line.Contains("[frag]", StringComparison.OrdinalIgnoreCase)
+            || (line.Contains("frame=", StringComparison.OrdinalIgnoreCase) && line.Contains("fps=", StringComparison.OrdinalIgnoreCase))
+            || (line.Contains("size=", StringComparison.OrdinalIgnoreCase) && line.Contains("time=", StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsNoiseLine(string line)
@@ -167,21 +140,12 @@ internal class ProcessExecutor
             return true;
         }
 
-        if (line.StartsWith("[youtube]", StringComparison.OrdinalIgnoreCase) ||
-            line.StartsWith("[generic]", StringComparison.OrdinalIgnoreCase) ||
-            line.StartsWith("[info]", StringComparison.OrdinalIgnoreCase) ||
-            line.StartsWith("[download] Destination:", StringComparison.OrdinalIgnoreCase) ||
-            line.StartsWith("[ExtractAudio]", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (line.Contains("The url doesn't specify the protocol", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return false;
+        return line.StartsWith("[youtube]", StringComparison.OrdinalIgnoreCase)
+            || line.StartsWith("[generic]", StringComparison.OrdinalIgnoreCase)
+            || line.StartsWith("[info]", StringComparison.OrdinalIgnoreCase)
+            || line.StartsWith("[download] Destination:", StringComparison.OrdinalIgnoreCase)
+            || line.StartsWith("[ExtractAudio]", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("The url doesn't specify the protocol", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void HandleStdErr(string data)

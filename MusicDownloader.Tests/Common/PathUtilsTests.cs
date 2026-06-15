@@ -12,10 +12,8 @@ public sealed class PathUtilsTests
     [InlineData("", "")]
     public void SafeFileName_WithVariousInputs_SanitizesInvalidPathCharacters(string input, string expected)
     {
-        // Act
         string result = PathUtils.SafeFileName(input);
 
-        // Assert
         result.Should().Be(expected);
     }
 }

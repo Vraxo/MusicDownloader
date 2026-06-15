@@ -73,6 +73,14 @@ internal sealed class ProcessArguments : IReadOnlyList<string>
 
     private static bool IsMetadataKey(string key)
     {
-        return key is "title" or "artist" or "album" or "track" or "disc" or "date" or "genre" or "comment";
+        return key
+            is "title"
+            or "artist"
+            or "album"
+            or "track"
+            or "disc"
+            or "date"
+            or "genre"
+            or "comment";
     }
 }

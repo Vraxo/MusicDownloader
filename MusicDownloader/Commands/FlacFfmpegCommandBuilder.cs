@@ -22,7 +22,7 @@ internal sealed class FlacFfmpegCommandBuilder(
 
         args.AddRange(["-map", "0", "-map_metadata", "-1"]);
 
-        if (HasFilter())
+        if (tempo is > 0)
         {
             args.AddRange(["-c:a", "flac"]);
         }
@@ -34,11 +34,6 @@ internal sealed class FlacFfmpegCommandBuilder(
         args.Add(outputFile);
 
         return args;
-    }
-
-    private bool HasFilter()
-    {
-        return tempo is > 0;
     }
 
     private List<string> BuildTrimOptions()

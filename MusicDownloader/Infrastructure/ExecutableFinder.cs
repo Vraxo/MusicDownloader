@@ -37,4 +37,10 @@ internal static class ExecutableFinder
 
         return exeName;
     }
+
+    public static string GetFfprobePath()
+    {
+        string ffprobeExe = SettingsManager.Current.FfmpegExe.Replace("ffmpeg", "ffprobe");
+        return GetFullPath(ffprobeExe, SettingsManager.Current.FfmpegDir);
+    }
 }
