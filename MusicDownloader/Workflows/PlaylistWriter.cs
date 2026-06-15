@@ -73,11 +73,11 @@ internal static class PlaylistWriter
             Track track = sortedTracks[i];
             string relativePath = GetRelativePath(format, track);
 
-            _ = contentBuilder.AppendLine(relativePath);
+            contentBuilder.AppendLine(relativePath);
 
             if ((i + 1) % 5 == 0 && (i + 1) < sortedTracks.Count)
             {
-                _ = contentBuilder.AppendLine();
+                contentBuilder.AppendLine();
             }
         }
 
@@ -85,7 +85,7 @@ internal static class PlaylistWriter
         {
             string safeTagFileName = PathUtils.SafeFileName(tag);
             string playlistPath = Path.Combine(SettingsManager.Current.BaseDataDir, $"{safeTagFileName}.m3u");
-            _ = Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
+            Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
 
             await File.WriteAllTextAsync(playlistPath, contentBuilder.ToString());
             Log.Success($"Successfully created playlist: {Path.GetFileName(playlistPath)} with {tracks.Count} songs.");

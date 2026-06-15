@@ -43,7 +43,7 @@ internal static class AutomaticProcessor
             return (pending, upToDate, metadataUpdates, newDownloads);
         }
 
-        object lockObj = new();
+        (bool IsUpToDate, bool IsNewDownload)[] results = new (bool IsUpToDate, bool IsNewDownload)[total];
 
         await AnsiConsole.Progress()
             .Columns([
@@ -57,8 +57,9 @@ internal static class AutomaticProcessor
             {
                 ProgressTask progressTask = ctx.AddTask("[cyan]Verifying metadata[/]", autoStart: true, maxValue: total);
 
-                await Parallel.ForEachAsync(tracks, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, async (track, cancellationToken) =>
+                await Parallel.ForEachAsync(Enumerable.Range(0, total), new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, async (i, cancellationToken) =>
                 {
+                    Track track = tracks[i];
                     string outputFile = TrackProcessor.GetOutputFile(track);
                     bool isUpToDate = false;
                     bool isNewDownload = true;
@@ -69,29 +70,31 @@ internal static class AutomaticProcessor
                         isUpToDate = AudioProber.IsMetadataUpToDate(outputFile, track, out _);
                     }
 
+                    results[i] = (isUpToDate, isNewDownload);
                     progressTask.Increment(1);
-
-                    lock (lockObj)
-                    {
-                        if (isUpToDate)
-                        {
-                            upToDate++;
-                        }
-                        else
-                        {
-                            pending.Add(track);
-                            if (isNewDownload)
-                            {
-                                newDownloads++;
-                            }
-                            else
-                            {
-                                metadataUpdates++;
-                            }
-                        }
-                    }
                 });
             });
+
+        for (int i = 0; i < total; i++)
+        {
+            var (isUpToDate, isNewDownload) = results[i];
+            if (isUpToDate)
+            {
+                upToDate++;
+            }
+            else
+            {
+                pending.Add(tracks[i]);
+                if (isNewDownload)
+                {
+                    newDownloads++;
+                }
+                else
+                {
+                    metadataUpdates++;
+                }
+            }
+        }
 
         return (pending, upToDate, metadataUpdates, newDownloads);
     }

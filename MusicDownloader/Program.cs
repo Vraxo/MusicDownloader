@@ -9,8 +9,8 @@ try
 {
     bool isFirstRun = !Directory.Exists(SettingsManager.Current.DatabaseDir);
 
-    _ = Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
-    _ = Directory.CreateDirectory(SettingsManager.Current.DatabaseDir);
+    Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
+    Directory.CreateDirectory(SettingsManager.Current.DatabaseDir);
 
     if (isFirstRun)
     {

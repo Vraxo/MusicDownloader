@@ -258,7 +258,7 @@ internal sealed class FfmpegCommandBuilder
             return $"atempo={tempoMultiplier.ToString("0.000", CultureInfo.InvariantCulture)}";
         }
 
-        int newSampleRate = (int)Math.Round(48000 * tempoMultiplier);
+        int newSampleRate = (int)double.Round(48000 * tempoMultiplier);
         return $"asetrate={newSampleRate}";
     }
 }
@@ -342,7 +342,7 @@ internal sealed class FlacFfmpegCommandBuilder(
 
         args.AddRange(["-map", "0", "-map_metadata", "-1"]);
 
-        if (HasFilter())
+        if (tempo is > 0)
         {
             args.AddRange(["-c:a", "flac"]);
         }
@@ -354,11 +354,6 @@ internal sealed class FlacFfmpegCommandBuilder(
         args.Add(outputFile);
 
         return args;
-    }
-
-    private bool HasFilter()
-    {
-        return tempo is > 0;
     }
 
     private List<string> BuildTrimOptions()
@@ -790,8 +785,7 @@ internal static class AudioProber
 
     public static Dictionary<string, string> GetMetadata(string inputFile)
     {
-        string ffprobeExe = SettingsManager.Current.FfmpegExe.Replace("ffmpeg", "ffprobe");
-        string ffprobePath = ExecutableFinder.GetFullPath(ffprobeExe, SettingsManager.Current.FfmpegDir);
+        string ffprobePath = ExecutableFinder.GetFfprobePath();
 
         string[] args = [
             "-v", "error",
@@ -829,11 +823,7 @@ internal static class AudioProber
 
     private static string Clean(string? val)
     {
-        if (val is null)
-        {
-            return string.Empty;
-        }
-        return val.Trim().Replace("\r", "").Replace("\n", "");
+        return val is null ? string.Empty : val.Trim().Replace("\r", "").Replace("\n", "");
     }
 
     public static bool IsMetadataUpToDate(string filePath, Track track, out string? mismatchReason)
@@ -887,8 +877,7 @@ internal static class AudioProber
 
     private static T RunProbe<T>(string inputFile, string entries, Func<string, T> parser)
     {
-        string ffprobeExe = SettingsManager.Current.FfmpegExe.Replace("ffmpeg", "ffprobe");
-        string ffprobePath = ExecutableFinder.GetFullPath(ffprobeExe, SettingsManager.Current.FfmpegDir);
+        string ffprobePath = ExecutableFinder.GetFfprobePath();
 
         string[] args = [
             "-v", "error",
@@ -954,6 +943,12 @@ internal static class ExecutableFinder
         }
 
         return exeName;
+    }
+
+    public static string GetFfprobePath()
+    {
+        string ffprobeExe = SettingsManager.Current.FfmpegExe.Replace("ffmpeg", "ffprobe");
+        return GetFullPath(ffprobeExe, SettingsManager.Current.FfmpegDir);
     }
 }
 ```
@@ -1073,29 +1068,23 @@ internal class ProcessExecutor
 
             proc.OutputDataReceived += (_, e) =>
             {
-                if (!string.IsNullOrEmpty(e.Data))
+                if (!string.IsNullOrEmpty(e.Data) && !IsProgressLine(e.Data) && !IsNoiseLine(e.Data))
                 {
-                    if (!IsProgressLine(e.Data) && !IsNoiseLine(e.Data))
-                    {
-                        Log.Info(e.Data);
-                    }
+                    Log.Info(e.Data);
                 }
             };
 
             proc.ErrorDataReceived += (_, e) =>
             {
-                if (!string.IsNullOrEmpty(e.Data))
+                if (!string.IsNullOrEmpty(e.Data) && !IsProgressLine(e.Data))
                 {
-                    if (!IsProgressLine(e.Data))
+                    if (stdErrHandler is not null)
                     {
-                        if (stdErrHandler is not null)
-                        {
-                            stdErrHandler(e.Data);
-                        }
-                        else
-                        {
-                            HandleStdErr(e.Data);
-                        }
+                        stdErrHandler(e.Data);
+                    }
+                    else
+                    {
+                        HandleStdErr(e.Data);
                     }
                 }
             };
@@ -1129,21 +1118,17 @@ internal class ProcessExecutor
 
             proc.OutputDataReceived += (_, e) =>
             {
-                if (e.Data is null)
+                if (e.Data is not null)
                 {
-                    return;
+                    output.AppendLine(e.Data);
                 }
-
-                output.AppendLine(e.Data);
             };
             proc.ErrorDataReceived += (_, e) =>
             {
-                if (e.Data is null)
+                if (e.Data is not null)
                 {
-                    return;
+                    error.AppendLine(e.Data);
                 }
-
-                error.AppendLine(e.Data);
             };
 
             proc.Start();
@@ -1195,27 +1180,10 @@ internal class ProcessExecutor
             return false;
         }
 
-        if (line.Contains("[download]", StringComparison.OrdinalIgnoreCase) && line.Contains('%'))
-        {
-            return true;
-        }
-
-        if (line.Contains("[frag]", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (line.Contains("frame=", StringComparison.OrdinalIgnoreCase) && line.Contains("fps=", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (line.Contains("size=", StringComparison.OrdinalIgnoreCase) && line.Contains("time=", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return false;
+        return (line.Contains("[download]", StringComparison.OrdinalIgnoreCase) && line.Contains('%'))
+            || line.Contains("[frag]", StringComparison.OrdinalIgnoreCase)
+            || (line.Contains("frame=", StringComparison.OrdinalIgnoreCase) && line.Contains("fps=", StringComparison.OrdinalIgnoreCase))
+            || (line.Contains("size=", StringComparison.OrdinalIgnoreCase) && line.Contains("time=", StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool IsNoiseLine(string line)
@@ -1225,21 +1193,12 @@ internal class ProcessExecutor
             return true;
         }
 
-        if (line.StartsWith("[youtube]", StringComparison.OrdinalIgnoreCase) ||
-            line.StartsWith("[generic]", StringComparison.OrdinalIgnoreCase) ||
-            line.StartsWith("[info]", StringComparison.OrdinalIgnoreCase) ||
-            line.StartsWith("[download] Destination:", StringComparison.OrdinalIgnoreCase) ||
-            line.StartsWith("[ExtractAudio]", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (line.Contains("The url doesn't specify the protocol", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return false;
+        return line.StartsWith("[youtube]", StringComparison.OrdinalIgnoreCase)
+            || line.StartsWith("[generic]", StringComparison.OrdinalIgnoreCase)
+            || line.StartsWith("[info]", StringComparison.OrdinalIgnoreCase)
+            || line.StartsWith("[download] Destination:", StringComparison.OrdinalIgnoreCase)
+            || line.StartsWith("[ExtractAudio]", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("The url doesn't specify the protocol", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void HandleStdErr(string data)
@@ -2227,7 +2186,7 @@ public class FlacFfmpegCommandBuilderTests
 
 ---
 
-### `MusicDownloader.Tests\Commands\YtCommandBuilderTests.cs`
+### `MusicDownloader.Tests\Commands\YtDlpCommandBuilderTests.cs`
 
 ```csharp
 using FluentAssertions;
@@ -2254,7 +2213,6 @@ public sealed class YtDlpCommandBuilderTests
     [Fact]
     public void Build_WithValidTrack_GeneratesYtDlpCommand()
     {
-        // Arrange
         Track track = new()
         {
             Title = "Download Track",
@@ -2266,10 +2224,8 @@ public sealed class YtDlpCommandBuilderTests
 
         YtDlpCommandBuilder builder = new(track, "temp_audio");
 
-        // Act
         string command = builder.Build();
 
-        // Assert
         command.Should().Contain("-f \"bestaudio[ext=m4a]/bestaudio\"");
         command.Should().Contain("\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\"");
         command.Should().Contain("--write-thumbnail");
@@ -2281,7 +2237,6 @@ public sealed class YtDlpCommandBuilderTests
     [Fact]
     public void Build_WithBrowserCookiesAndFfmpegDir_IncludesFlags()
     {
-        // Arrange
         Track track = new()
         {
             Title = "Download Track",
@@ -2292,14 +2247,11 @@ public sealed class YtDlpCommandBuilderTests
 
         YtDlpCommandBuilder builder = new(track, "temp_audio");
 
-        // Act
         string command = builder.Build();
 
-        // Assert
         command.Should().Contain("--cookies-from-browser firefox");
         command.Should().Contain(@"--ffmpeg-location ""C:\FfmpegPath""");
 
-        // Clean up
         SettingsManager.Current.CookiesBrowser = _originalSettings.CookiesBrowser;
         SettingsManager.Current.FfmpegDir = _originalSettings.FfmpegDir;
     }
@@ -2325,10 +2277,8 @@ public sealed class PathUtilsTests
     [InlineData("", "")]
     public void SafeFileName_WithVariousInputs_SanitizesInvalidPathCharacters(string input, string expected)
     {
-        // Act
         string result = PathUtils.SafeFileName(input);
 
-        // Assert
         result.Should().Be(expected);
     }
 }

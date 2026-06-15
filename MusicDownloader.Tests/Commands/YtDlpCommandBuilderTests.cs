@@ -5,18 +5,24 @@ using MusicDownloader.Infrastructure;
 
 namespace MusicDownloader.Tests.Commands;
 
-public sealed class YtDlpCommandBuilderTests
+public sealed class YtDlpCommandBuilderTests : IDisposable
 {
-    private readonly Settings _originalSettings;
+    private readonly string? _originalCookiesBrowser;
+    private readonly string _originalCookieFile;
+    private readonly string _originalFfmpegDir;
 
     public YtDlpCommandBuilderTests()
     {
-        _originalSettings = new Settings
-        {
-            CookiesBrowser = SettingsManager.Current.CookiesBrowser,
-            CookieFile = SettingsManager.Current.CookieFile,
-            FfmpegDir = SettingsManager.Current.FfmpegDir
-        };
+        _originalCookiesBrowser = SettingsManager.Current.CookiesBrowser;
+        _originalCookieFile = SettingsManager.Current.CookieFile;
+        _originalFfmpegDir = SettingsManager.Current.FfmpegDir;
+    }
+
+    public void Dispose()
+    {
+        SettingsManager.Current.CookiesBrowser = _originalCookiesBrowser;
+        SettingsManager.Current.CookieFile = _originalCookieFile;
+        SettingsManager.Current.FfmpegDir = _originalFfmpegDir;
     }
 
     [Fact]
@@ -60,8 +66,5 @@ public sealed class YtDlpCommandBuilderTests
 
         command.Should().Contain("--cookies-from-browser firefox");
         command.Should().Contain(@"--ffmpeg-location ""C:\FfmpegPath""");
-
-        SettingsManager.Current.CookiesBrowser = _originalSettings.CookiesBrowser;
-        SettingsManager.Current.FfmpegDir = _originalSettings.FfmpegDir;
     }
 }

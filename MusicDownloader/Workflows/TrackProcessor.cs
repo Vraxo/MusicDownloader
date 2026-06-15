@@ -30,7 +30,7 @@ internal class TrackProcessor
 
     public async Task<TrackProcessStatus> ProcessAsync()
     {
-        _ = Directory.CreateDirectory(_albumDir);
+        Directory.CreateDirectory(_albumDir);
 
         string outputFile = GetOutputFile(_track);
 
