@@ -5,6 +5,8 @@ namespace MusicDownloader.Workflows;
 
 internal static class AutomaticProcessor
 {
+    private static readonly object ConsoleLock = new();
+
     public static async Task RunAsync()
     {
         List<Track> allTracks = await TomlTrackReader.ReadAllTracksAsync();
@@ -15,7 +17,7 @@ internal static class AutomaticProcessor
 
         Console.WriteLine();
 
-        (List<Track> pendingTracks, int alreadyDownloadedCount) = FilterPendingTracks(allTracks);
+        (List<Track> pendingTracks, int alreadyDownloadedCount) = await FilterPendingTracksAsync(allTracks);
 
         if (pendingTracks.Count == 0)
         {
@@ -33,17 +35,39 @@ internal static class AutomaticProcessor
             $"({updatedCount} were already up to date)");
     }
 
-    private static (List<Track> Pending, int UpToDate) FilterPendingTracks(IEnumerable<Track> tracks)
+    private static async Task<(List<Track> Pending, int UpToDate)> FilterPendingTracksAsync(IReadOnlyList<Track> tracks)
     {
         List<Track> pending = [];
         int upToDate = 0;
+        int completed = 0;
+        int total = tracks.Count;
 
-        foreach (Track track in tracks)
+        if (total == 0)
+        {
+            return (pending, upToDate);
+        }
+
+        Log.Info("Verifying downloaded tracks...");
+        UpdateProgressBar(0, total);
+
+        object lockObj = new();
+
+        await Parallel.ForEachAsync(tracks, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, async (track, cancellationToken) =>
         {
             string outputFile = TrackProcessor.GetOutputFile(track);
+            bool isUpToDate = false;
+
             if (File.Exists(outputFile))
             {
-                if (AudioProber.IsMetadataUpToDate(outputFile, track))
+                isUpToDate = AudioProber.IsMetadataUpToDate(outputFile, track);
+            }
+
+            int currentCompleted = Interlocked.Increment(ref completed);
+            UpdateProgressBar(currentCompleted, total);
+
+            lock (lockObj)
+            {
+                if (isUpToDate)
                 {
                     upToDate++;
                 }
@@ -52,13 +76,40 @@ internal static class AutomaticProcessor
                     pending.Add(track);
                 }
             }
-            else
-            {
-                pending.Add(track);
-            }
-        }
+        });
+
+        ClearCurrentLine();
 
         return (pending, upToDate);
+    }
+
+    private static void UpdateProgressBar(int current, int total)
+    {
+        lock (ConsoleLock)
+        {
+            double percent = (double)current / total * 100;
+            int barWidth = 30;
+            int filledWidth = (int)Math.Round(percent / 100 * barWidth);
+
+            string filled = new('█', filledWidth);
+            string empty = new('░', barWidth - filledWidth);
+
+            Console.Write("\rVerifying metadata: [");
+
+            Console.ForegroundColor = ConsoleColor.Cyan;
+            Console.Write(filled);
+
+            Console.ResetColor();
+            Console.Write($"{empty}] {percent:0}% ({current}/{total})");
+        }
+    }
+
+    private static void ClearCurrentLine()
+    {
+        lock (ConsoleLock)
+        {
+            Console.Write($"\r{new string(' ', 79)}\r");
+        }
     }
 
     private static void PrintPreFlightStats(int total, int upToDate, int pending)

@@ -17,24 +17,28 @@ internal class ProcessExecutor
             {
                 if (!string.IsNullOrEmpty(e.Data))
                 {
-                    Log.Info(e.Data);
+                    if (!IsProgressLine(e.Data))
+                    {
+                        Log.Info(e.Data);
+                    }
                 }
             };
 
             proc.ErrorDataReceived += (_, e) =>
             {
-                if (string.IsNullOrEmpty(e.Data))
+                if (!string.IsNullOrEmpty(e.Data))
                 {
-                    return;
-                }
-
-                if (stdErrHandler is not null)
-                {
-                    stdErrHandler(e.Data);
-                }
-                else
-                {
-                    HandleStdErr(e.Data);
+                    if (!IsProgressLine(e.Data))
+                    {
+                        if (stdErrHandler is not null)
+                        {
+                            stdErrHandler(e.Data);
+                        }
+                        else
+                        {
+                            HandleStdErr(e.Data);
+                        }
+                    }
                 }
             };
 
@@ -122,6 +126,36 @@ internal class ProcessExecutor
         }
 
         return proc;
+    }
+
+    private static bool IsProgressLine(string line)
+    {
+        if (string.IsNullOrWhiteSpace(line))
+        {
+            return false;
+        }
+
+        if (line.Contains("[download]", StringComparison.OrdinalIgnoreCase) && line.Contains('%'))
+        {
+            return true;
+        }
+
+        if (line.Contains("[frag]", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (line.Contains("frame=", StringComparison.OrdinalIgnoreCase) && line.Contains("fps=", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (line.Contains("size=", StringComparison.OrdinalIgnoreCase) && line.Contains("time=", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private static void HandleStdErr(string data)

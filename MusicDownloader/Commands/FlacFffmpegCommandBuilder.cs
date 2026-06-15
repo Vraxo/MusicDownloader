@@ -12,7 +12,7 @@ internal sealed class FlacFfmpegCommandBuilder(
 {
     public ProcessArguments Build()
     {
-        List<string> args = ["-y"];
+        List<string> args = ["-y", "-v", "error"];
 
         args.AddRange(BuildTrimOptions());
 

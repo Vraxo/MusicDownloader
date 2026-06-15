@@ -35,7 +35,14 @@ internal class TrackProcessor
 
         if (File.Exists(outputFile))
         {
-            return TrackProcessStatus.Skipped;
+            if (AudioProber.IsMetadataUpToDate(outputFile, _track))
+            {
+                return TrackProcessStatus.Skipped;
+            }
+
+            Log.Action($"{GetLogPrefix()}Metadata is out of date for: {_track.Title}. Updating in-place...");
+            bool updated = await UpdateMetadataInPlaceAsync(outputFile);
+            return updated ? TrackProcessStatus.MetadataUpdated : TrackProcessStatus.Failed;
         }
 
         string tempFileBase = Path.Combine(_albumDir, "temp");
@@ -43,6 +50,8 @@ internal class TrackProcessor
 
         try
         {
+            Log.Action($"{GetLogPrefix()}Downloading & processing: {_track.Title}");
+
             if (!await RunFullDownloadAsync(tempFileBase))
             {
                 return TrackProcessStatus.Failed;
@@ -116,8 +125,6 @@ internal class TrackProcessor
 
     private async Task<bool> RunFullDownloadAsync(string tempFileBase)
     {
-        Log.Action($"{GetLogPrefix()}Downloading: {_track.Title}");
-
         ProcessArguments command = new YtDlpCommandBuilder(_track, tempFileBase).Build();
         string ytDlpPath = ExecutableFinder.GetFullPath(SettingsManager.Current.YtDlpExe, SettingsManager.Current.YtDlpDir);
 
@@ -142,8 +149,6 @@ internal class TrackProcessor
 
     private async Task<bool> ProcessAudioAsync(Track track, string inputFile, string? coverFile, string outputFile)
     {
-        Log.Action($"{GetLogPrefix()}Processing: {track.Title}");
-
         ProcessArguments command = new FfmpegCommandBuilder(track, inputFile, outputFile, coverFile).Build();
         string ffmpegPath = ExecutableFinder.GetFullPath(SettingsManager.Current.FfmpegExe, SettingsManager.Current.FfmpegDir);
 
@@ -164,6 +169,46 @@ internal class TrackProcessor
         }
 
         return true;
+    }
+
+    private async Task<bool> UpdateMetadataInPlaceAsync(string outputFile)
+    {
+        string tempFile = Path.Combine(_albumDir, "temp_meta_update." + SettingsManager.Current.AudioFormat);
+
+        try
+        {
+            FfmpegCommandBuilder builder = new(_track, outputFile, tempFile);
+            ProcessArguments command = builder.BuildMetadataUpdate(outputFile, tempFile);
+            string ffmpegPath = ExecutableFinder.GetFullPath(SettingsManager.Current.FfmpegExe, SettingsManager.Current.FfmpegDir);
+
+            int exitCode = await Task.Run(() => ProcessExecutor.Run(ffmpegPath, command));
+
+            if (exitCode != 0)
+            {
+                Log.Error($"{GetLogPrefix()}ffmpeg metadata update failed for {_track.Title}.");
+                return false;
+            }
+
+            File.Move(tempFile, outputFile, true);
+            Log.Success($"{GetLogPrefix()}Successfully updated metadata for: {_track.Title}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"{GetLogPrefix()}Failed to update metadata in-place for '{_track.Title}': {ex.Message}");
+            return false;
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                try
+                {
+                    File.Delete(tempFile);
+                }
+                catch { }
+            }
+        }
     }
 
     private void CleanupTempFiles()

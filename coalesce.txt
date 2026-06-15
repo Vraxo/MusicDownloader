@@ -102,7 +102,7 @@ internal sealed class FfmpegCommandBuilder
         string tempoFilter = BuildTempoFilterContent();
         bool hasFilter = !string.IsNullOrEmpty(tempoFilter) || loopCount > 1;
 
-        List<string> args = ["-y"];
+        List<string> args = ["-y", "-v", "error"];
 
         if (hasTrim && loopCount <= 1)
         {
@@ -193,6 +193,14 @@ internal sealed class FfmpegCommandBuilder
 
         args.Add(_outputFile);
 
+        return args;
+    }
+
+    public ProcessArguments BuildMetadataUpdate(string inputFile, string outputFile)
+    {
+        List<string> args = ["-y", "-v", "error", "-i", inputFile, "-map", "0"];
+        args.AddRange(BuildMetadataArgs());
+        args.AddRange(["-map_metadata", "-1", "-c", "copy", outputFile]);
         return args;
     }
 
@@ -321,7 +329,7 @@ internal sealed class FlacFfmpegCommandBuilder(
 {
     public ProcessArguments Build()
     {
-        List<string> args = ["-y"];
+        List<string> args = ["-y", "-v", "error"];
 
         args.AddRange(BuildTrimOptions());
 
@@ -478,6 +486,8 @@ internal sealed class Log
     private const ConsoleColor ActionColor = ConsoleColor.Cyan;
     private const ConsoleColor SuccessColor = ConsoleColor.Green;
 
+    private static readonly Lock LockObj = new();
+
     public static void Info(string message)
     {
         Print(InfoColor, message);
@@ -485,12 +495,12 @@ internal sealed class Log
 
     public static void Warning(string message)
     {
-        Print(WarningColor, message);
+        Print(WarningColor, message, isError: true);
     }
 
     public static void Error(string message)
     {
-        Print(ErrorColor, message);
+        Print(ErrorColor, message, isError: true);
     }
 
     public static void Action(string message)
@@ -503,11 +513,21 @@ internal sealed class Log
         Print(SuccessColor, message);
     }
 
-    private static void Print(ConsoleColor color, string message)
+    private static void Print(ConsoleColor color, string message, bool isError = false)
     {
-        Console.ForegroundColor = color;
-        Console.WriteLine(message);
-        Console.ResetColor();
+        lock (LockObj)
+        {
+            Console.ForegroundColor = color;
+            if (isError)
+            {
+                Console.Error.WriteLine(message);
+            }
+            else
+            {
+                Console.Out.WriteLine(message);
+            }
+            Console.ResetColor();
+        }
     }
 }
 ```
@@ -754,6 +774,7 @@ internal static class UserInput
 ### `MusicDownloader\Infrastructure\AudioProber.cs`
 
 ```csharp
+using MusicDownloader.Common;
 using System.Globalization;
 
 namespace MusicDownloader.Infrastructure;
@@ -778,6 +799,109 @@ internal static class AudioProber
                 ? val
                 : -1.0;
         });
+    }
+
+    public static Dictionary<string, string> GetMetadata(string inputFile)
+    {
+        string ffprobeExe = SettingsManager.Current.FfmpegExe.Replace("ffmpeg", "ffprobe");
+        string ffprobePath = ExecutableFinder.GetFullPath(ffprobeExe, SettingsManager.Current.FfmpegDir);
+
+        string[] args = [
+            "-v", "error",
+            "-show_entries", "format_tags",
+            "-of", "default=noprint_wrappers=1",
+            inputFile
+        ];
+
+        Dictionary<string, string> tags = new(StringComparer.OrdinalIgnoreCase);
+
+        try
+        {
+            ProcessResult result = ProcessExecutor.RunAndCapture(ffprobePath, args);
+            if (result.ExitCode == 0)
+            {
+                string[] lines = result.StandardOutput.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries);
+                foreach (string line in lines)
+                {
+                    int eqIndex = line.IndexOf('=');
+                    if (eqIndex > 0)
+                    {
+                        string key = line[..eqIndex].Replace("TAG:", "", StringComparison.OrdinalIgnoreCase).Trim();
+                        string value = line[(eqIndex + 1)..].Trim();
+                        tags[key] = value;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Fail silently, return empty tags
+        }
+
+        return tags;
+    }
+
+    public static bool IsMetadataUpToDate(string filePath, Track track)
+    {
+        Dictionary<string, string> existing = GetMetadata(filePath);
+
+        if (!existing.TryGetValue("title", out string? title) || !string.Equals(title, track.Title, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (!existing.TryGetValue("artist", out string? artist) || !string.Equals(artist, track.Artist, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (!existing.TryGetValue("album", out string? album) || !string.Equals(album, track.Album, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        string expectedTrack = track.TrackNumber?.ToString() ?? string.Empty;
+        existing.TryGetValue("track", out string? existingTrack);
+        if (existingTrack is not null && existingTrack.Contains('/'))
+        {
+            existingTrack = existingTrack.Split('/')[0];
+        }
+        if (!string.Equals(existingTrack ?? string.Empty, expectedTrack, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        string expectedDisc = track.DiscNumber?.ToString() ?? string.Empty;
+        existing.TryGetValue("disc", out string? existingDisc);
+        if (existingDisc is not null && existingDisc.Contains('/'))
+        {
+            existingDisc = existingDisc.Split('/')[0];
+        }
+        if (!string.Equals(existingDisc ?? string.Empty, expectedDisc, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        existing.TryGetValue("date", out string? existingDate);
+        if (!string.Equals(existingDate ?? string.Empty, track.Date ?? string.Empty, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        string expectedGenre = track.Tags.Count > 0 ? string.Join(", ", track.Tags) : string.Empty;
+        existing.TryGetValue("genre", out string? existingGenre);
+        if (!string.Equals(existingGenre ?? string.Empty, expectedGenre, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        existing.TryGetValue("comment", out string? existingComment);
+        if (!string.Equals(existingComment ?? string.Empty, track.Source, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private static T RunProbe<T>(string inputFile, string entries, Func<string, T> parser)
@@ -982,7 +1106,10 @@ internal class ProcessExecutor
             {
                 if (!string.IsNullOrEmpty(e.Data))
                 {
-                    Log.Info(e.Data);
+                    if (!IsProgressLine(e.Data))
+                    {
+                        Log.Info(e.Data);
+                    }
                 }
             };
 
@@ -990,13 +1117,16 @@ internal class ProcessExecutor
             {
                 if (!string.IsNullOrEmpty(e.Data))
                 {
-                    if (stdErrHandler is not null)
+                    if (!IsProgressLine(e.Data))
                     {
-                        stdErrHandler(e.Data);
-                    }
-                    else
-                    {
-                        HandleStdErr(e.Data);
+                        if (stdErrHandler is not null)
+                        {
+                            stdErrHandler(e.Data);
+                        }
+                        else
+                        {
+                            HandleStdErr(e.Data);
+                        }
                     }
                 }
             };
@@ -1085,6 +1215,36 @@ internal class ProcessExecutor
         }
 
         return proc;
+    }
+
+    private static bool IsProgressLine(string line)
+    {
+        if (string.IsNullOrWhiteSpace(line))
+        {
+            return false;
+        }
+
+        if (line.Contains("[download]", StringComparison.OrdinalIgnoreCase) && line.Contains('%'))
+        {
+            return true;
+        }
+
+        if (line.Contains("[frag]", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (line.Contains("frame=", StringComparison.OrdinalIgnoreCase) && line.Contains("fps=", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (line.Contains("size=", StringComparison.OrdinalIgnoreCase) && line.Contains("time=", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private static void HandleStdErr(string data)
@@ -1251,11 +1411,11 @@ internal static class AutomaticProcessor
 
         PrintPreFlightStats(allTracks.Count, alreadyDownloadedCount, pendingTracks.Count);
 
-        (int downloaded, int failed, int updatedCount) = await ProcessQueueAsync(pendingTracks, alreadyDownloadedCount);
+        (int downloaded, int metadataUpdated, int failed, int updatedCount) = await ProcessQueueAsync(pendingTracks, alreadyDownloadedCount);
 
         Console.WriteLine();
         Log.Success(
-            $"Processing finished: {downloaded} newly downloaded, {failed} failed. " +
+            $"Processing finished: {downloaded} newly downloaded, {metadataUpdated} metadata updated, {failed} failed. " +
             $"({updatedCount} were already up to date)");
     }
 
@@ -1266,9 +1426,17 @@ internal static class AutomaticProcessor
 
         foreach (Track track in tracks)
         {
-            if (File.Exists(TrackProcessor.GetOutputFile(track)))
+            string outputFile = TrackProcessor.GetOutputFile(track);
+            if (File.Exists(outputFile))
             {
-                upToDate++;
+                if (AudioProber.IsMetadataUpToDate(outputFile, track))
+                {
+                    upToDate++;
+                }
+                else
+                {
+                    pending.Add(track);
+                }
             }
             else
             {
@@ -1287,9 +1455,10 @@ internal static class AutomaticProcessor
         Console.WriteLine();
     }
 
-    private static async Task<(int Downloaded, int Failed, int UpToDate)> ProcessQueueAsync(IReadOnlyList<Track> queue, int alreadyDownloadedCount)
+    private static async Task<(int Downloaded, int MetadataUpdated, int Failed, int UpToDate)> ProcessQueueAsync(IReadOnlyList<Track> queue, int alreadyDownloadedCount)
     {
         int downloaded = 0;
+        int metadataUpdated = 0;
         int failed = 0;
         int upToDate = alreadyDownloadedCount;
         int total = queue.Count;
@@ -1320,16 +1489,19 @@ internal static class AutomaticProcessor
                 case TrackProcessStatus.Skipped:
                     upToDate++;
                     break;
+                case TrackProcessStatus.MetadataUpdated:
+                    metadataUpdated++;
+                    break;
             }
 
-            bool downloadAttempted = status != TrackProcessStatus.Skipped;
+            bool downloadAttempted = status == TrackProcessStatus.Success;
             if (downloadAttempted && SettingsManager.Current.DelayBetweenDownloadsMs > 0)
             {
                 await Task.Delay(SettingsManager.Current.DelayBetweenDownloadsMs);
             }
         }
 
-        return (downloaded, failed, upToDate);
+        return (downloaded, metadataUpdated, failed, upToDate);
     }
 }
 ```
@@ -1596,7 +1768,14 @@ internal class TrackProcessor
 
         if (File.Exists(outputFile))
         {
-            return TrackProcessStatus.Skipped;
+            if (AudioProber.IsMetadataUpToDate(outputFile, _track))
+            {
+                return TrackProcessStatus.Skipped;
+            }
+
+            Log.Action($"{GetLogPrefix()}Metadata is out of date for: {_track.Title}. Updating in-place...");
+            bool updated = await UpdateMetadataInPlaceAsync(outputFile);
+            return updated ? TrackProcessStatus.MetadataUpdated : TrackProcessStatus.Failed;
         }
 
         string tempFileBase = Path.Combine(_albumDir, "temp");
@@ -1604,6 +1783,8 @@ internal class TrackProcessor
 
         try
         {
+            Log.Action($"{GetLogPrefix()}Downloading & processing: {_track.Title}");
+
             if (!await RunFullDownloadAsync(tempFileBase))
             {
                 return TrackProcessStatus.Failed;
@@ -1677,8 +1858,6 @@ internal class TrackProcessor
 
     private async Task<bool> RunFullDownloadAsync(string tempFileBase)
     {
-        Log.Action($"{GetLogPrefix()}Downloading: {_track.Title}");
-
         ProcessArguments command = new YtDlpCommandBuilder(_track, tempFileBase).Build();
         string ytDlpPath = ExecutableFinder.GetFullPath(SettingsManager.Current.YtDlpExe, SettingsManager.Current.YtDlpDir);
 
@@ -1703,8 +1882,6 @@ internal class TrackProcessor
 
     private async Task<bool> ProcessAudioAsync(Track track, string inputFile, string? coverFile, string outputFile)
     {
-        Log.Action($"{GetLogPrefix()}Processing: {track.Title}");
-
         ProcessArguments command = new FfmpegCommandBuilder(track, inputFile, outputFile, coverFile).Build();
         string ffmpegPath = ExecutableFinder.GetFullPath(SettingsManager.Current.FfmpegExe, SettingsManager.Current.FfmpegDir);
 
@@ -1725,6 +1902,46 @@ internal class TrackProcessor
         }
 
         return true;
+    }
+
+    private async Task<bool> UpdateMetadataInPlaceAsync(string outputFile)
+    {
+        string tempFile = Path.Combine(_albumDir, "temp_meta_update." + SettingsManager.Current.AudioFormat);
+
+        try
+        {
+            FfmpegCommandBuilder builder = new(_track, outputFile, tempFile);
+            ProcessArguments command = builder.BuildMetadataUpdate(outputFile, tempFile);
+            string ffmpegPath = ExecutableFinder.GetFullPath(SettingsManager.Current.FfmpegExe, SettingsManager.Current.FfmpegDir);
+
+            int exitCode = await Task.Run(() => ProcessExecutor.Run(ffmpegPath, command));
+
+            if (exitCode != 0)
+            {
+                Log.Error($"{GetLogPrefix()}ffmpeg metadata update failed for {_track.Title}.");
+                return false;
+            }
+
+            File.Move(tempFile, outputFile, true);
+            Log.Success($"{GetLogPrefix()}Successfully updated metadata for: {_track.Title}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"{GetLogPrefix()}Failed to update metadata in-place for '{_track.Title}': {ex.Message}");
+            return false;
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                try
+                {
+                    File.Delete(tempFile);
+                }
+                catch { }
+            }
+        }
     }
 
     private void CleanupTempFiles()
@@ -1760,7 +1977,8 @@ internal enum TrackProcessStatus
 {
     Skipped,
     Success,
-    Failed
+    Failed,
+    MetadataUpdated
 }
 ```
 
@@ -1873,6 +2091,24 @@ public class FfmpegCommandBuilderTests
         string command = builder.Build();
 
         command.Should().Contain("-filter:a");
+    }
+
+    [Fact]
+    public void BuildMetadataUpdate_WithValidTrack_ReturnsCopyCommand()
+    {
+        Track track = new()
+        {
+            Title = "Song Title",
+            Artist = "Artist Name",
+            Album = "Album Name"
+        };
+
+        FfmpegCommandBuilder builder = new(track, "input.m4a", "output.m4a");
+        string command = builder.BuildMetadataUpdate("input.m4a", "output.m4a");
+
+        command.Should().Contain("-metadata title=\"Song Title\"");
+        command.Should().Contain("-c copy");
+        command.Should().Contain("-map 0");
     }
 }
 ```

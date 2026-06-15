@@ -28,7 +28,7 @@ internal sealed class FfmpegCommandBuilder
         string tempoFilter = BuildTempoFilterContent();
         bool hasFilter = !string.IsNullOrEmpty(tempoFilter) || loopCount > 1;
 
-        List<string> args = ["-y"];
+        List<string> args = ["-y", "-v", "error"];
 
         if (hasTrim && loopCount <= 1)
         {
@@ -124,7 +124,7 @@ internal sealed class FfmpegCommandBuilder
 
     public ProcessArguments BuildMetadataUpdate(string inputFile, string outputFile)
     {
-        List<string> args = ["-y", "-i", inputFile, "-map", "0"];
+        List<string> args = ["-y", "-v", "error", "-i", inputFile, "-map", "0"];
         args.AddRange(BuildMetadataArgs());
         args.AddRange(["-map_metadata", "-1", "-c", "copy", outputFile]);
         return args;
