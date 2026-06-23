@@ -38,8 +38,8 @@ try
 {
     bool isFirstRun = !Directory.Exists(SettingsManager.Current.DatabaseDir);
 
-    _ = Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
-    _ = Directory.CreateDirectory(SettingsManager.Current.DatabaseDir);
+    Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
+    Directory.CreateDirectory(SettingsManager.Current.DatabaseDir);
 
     if (isFirstRun)
     {
@@ -260,55 +260,6 @@ internal sealed class FfmpegCommandBuilder
 
         int newSampleRate = (int)double.Round(48000 * tempoMultiplier);
         return $"asetrate={newSampleRate}";
-    }
-}
-```
-
----
-
-### `MusicDownloader\Commands\FfmpegNetworkTester.cs`
-
-```csharp
-using MusicDownloader.Common;
-using MusicDownloader.Infrastructure;
-
-namespace MusicDownloader.Commands;
-
-internal static class FfmpegNetworkTester
-{
-    public static void Test()
-    {
-        Log.Info("Running FFmpeg network connectivity test (HTTPS)...");
-
-        string ffmpegExe = ExecutableFinder.GetFullPath(SettingsManager.Current.FfmpegExe, SettingsManager.Current.FfmpegDir);
-        string[] args = ["-v", "error", "-i", "https://www.google.com", "-f", "null", "-"];
-
-        try
-        {
-            ProcessResult result = ProcessExecutor.RunAndCapture(ffmpegExe, args);
-            string logs = result.StandardError;
-
-            if (logs.Contains("Connection refused") ||
-                logs.Contains("Network is unreachable") ||
-                logs.Contains("I/O error") ||
-                logs.Contains("TLS") ||
-                logs.Contains("certificate"))
-            {
-                Log.Error("FFmpeg Connectivity: FAILED");
-                Log.Error("FFmpeg cannot make HTTPS connections. This is likely a firewall or SSL certificate issue.");
-                Log.Error("Raw Error: " + logs);
-            }
-            else
-            {
-                Log.Success("FFmpeg Connectivity: OK (HTTPS Connection successful)");
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"Could not run FFmpeg test: {ex.Message}");
-        }
-
-        Console.WriteLine();
     }
 }
 ```
@@ -1395,7 +1346,7 @@ internal static class AutomaticProcessor
             return (pending, upToDate, metadataUpdates, newDownloads);
         }
 
-        object lockObj = new();
+        (bool IsUpToDate, bool IsNewDownload)[] results = new (bool IsUpToDate, bool IsNewDownload)[total];
 
         await AnsiConsole.Progress()
             .Columns([
@@ -1409,8 +1360,9 @@ internal static class AutomaticProcessor
             {
                 ProgressTask progressTask = ctx.AddTask("[cyan]Verifying metadata[/]", autoStart: true, maxValue: total);
 
-                await Parallel.ForEachAsync(tracks, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, async (track, cancellationToken) =>
+                await Parallel.ForEachAsync(Enumerable.Range(0, total), new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, async (i, cancellationToken) =>
                 {
+                    Track track = tracks[i];
                     string outputFile = TrackProcessor.GetOutputFile(track);
                     bool isUpToDate = false;
                     bool isNewDownload = true;
@@ -1421,29 +1373,31 @@ internal static class AutomaticProcessor
                         isUpToDate = AudioProber.IsMetadataUpToDate(outputFile, track, out _);
                     }
 
+                    results[i] = (isUpToDate, isNewDownload);
                     progressTask.Increment(1);
-
-                    lock (lockObj)
-                    {
-                        if (isUpToDate)
-                        {
-                            upToDate++;
-                        }
-                        else
-                        {
-                            pending.Add(track);
-                            if (isNewDownload)
-                            {
-                                newDownloads++;
-                            }
-                            else
-                            {
-                                metadataUpdates++;
-                            }
-                        }
-                    }
                 });
             });
+
+        for (int i = 0; i < total; i++)
+        {
+            var (isUpToDate, isNewDownload) = results[i];
+            if (isUpToDate)
+            {
+                upToDate++;
+            }
+            else
+            {
+                pending.Add(tracks[i]);
+                if (isNewDownload)
+                {
+                    newDownloads++;
+                }
+                else
+                {
+                    metadataUpdates++;
+                }
+            }
+        }
 
         return (pending, upToDate, metadataUpdates, newDownloads);
     }
@@ -1570,13 +1524,9 @@ internal static class ManualProcessor
         string rangeInput = UserInput.GetTrimRange();
         IReadOnlyList<string> range = [];
 
-        if (!string.IsNullOrWhiteSpace(rangeInput))
+        if (TrackParser.TryParseRange(rangeInput, out string start, out string end))
         {
-            string[] parts = rangeInput.Split('-');
-            if (parts.Length == 2)
-            {
-                range = [parts[0].Trim(), parts[1].Trim()];
-            }
+            range = [start, end];
         }
 
         string outputFile = ResolveOutputFile(inputFile);
@@ -1717,11 +1667,11 @@ internal static class PlaylistWriter
             Track track = sortedTracks[i];
             string relativePath = GetRelativePath(format, track);
 
-            _ = contentBuilder.AppendLine(relativePath);
+            contentBuilder.AppendLine(relativePath);
 
             if ((i + 1) % 5 == 0 && (i + 1) < sortedTracks.Count)
             {
-                _ = contentBuilder.AppendLine();
+                contentBuilder.AppendLine();
             }
         }
 
@@ -1729,7 +1679,7 @@ internal static class PlaylistWriter
         {
             string safeTagFileName = PathUtils.SafeFileName(tag);
             string playlistPath = Path.Combine(SettingsManager.Current.BaseDataDir, $"{safeTagFileName}.m3u");
-            _ = Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
+            Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
 
             await File.WriteAllTextAsync(playlistPath, contentBuilder.ToString());
             Log.Success($"Successfully created playlist: {Path.GetFileName(playlistPath)} with {tracks.Count} songs.");
@@ -1786,7 +1736,7 @@ internal class TrackProcessor
 
     public async Task<TrackProcessStatus> ProcessAsync()
     {
-        _ = Directory.CreateDirectory(_albumDir);
+        Directory.CreateDirectory(_albumDir);
 
         string outputFile = GetOutputFile(_track);
 
@@ -2196,18 +2146,24 @@ using MusicDownloader.Infrastructure;
 
 namespace MusicDownloader.Tests.Commands;
 
-public sealed class YtDlpCommandBuilderTests
+public sealed class YtDlpCommandBuilderTests : IDisposable
 {
-    private readonly Settings _originalSettings;
+    private readonly string? _originalCookiesBrowser;
+    private readonly string _originalCookieFile;
+    private readonly string _originalFfmpegDir;
 
     public YtDlpCommandBuilderTests()
     {
-        _originalSettings = new Settings
-        {
-            CookiesBrowser = SettingsManager.Current.CookiesBrowser,
-            CookieFile = SettingsManager.Current.CookieFile,
-            FfmpegDir = SettingsManager.Current.FfmpegDir
-        };
+        _originalCookiesBrowser = SettingsManager.Current.CookiesBrowser;
+        _originalCookieFile = SettingsManager.Current.CookieFile;
+        _originalFfmpegDir = SettingsManager.Current.FfmpegDir;
+    }
+
+    public void Dispose()
+    {
+        SettingsManager.Current.CookiesBrowser = _originalCookiesBrowser;
+        SettingsManager.Current.CookieFile = _originalCookieFile;
+        SettingsManager.Current.FfmpegDir = _originalFfmpegDir;
     }
 
     [Fact]
@@ -2251,9 +2207,6 @@ public sealed class YtDlpCommandBuilderTests
 
         command.Should().Contain("--cookies-from-browser firefox");
         command.Should().Contain(@"--ffmpeg-location ""C:\FfmpegPath""");
-
-        SettingsManager.Current.CookiesBrowser = _originalSettings.CookiesBrowser;
-        SettingsManager.Current.FfmpegDir = _originalSettings.FfmpegDir;
     }
 }
 ```

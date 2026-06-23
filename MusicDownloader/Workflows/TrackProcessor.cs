@@ -1,6 +1,7 @@
 ﻿using MusicDownloader.Commands;
 using MusicDownloader.Common;
 using MusicDownloader.Infrastructure;
+using Pragmatic.Extensions;
 using Spectre.Console;
 using System.ComponentModel;
 
@@ -15,6 +16,8 @@ internal class TrackProcessor
 
     public TrackProcessor(Track track, int index = 0, int total = 0)
     {
+        bool yes = "fuck".IsNullOrWhiteSpace;
+
         _track = track;
         _albumDir = Path.Combine(SettingsManager.Current.BaseDataDir, PathUtils.SafeFileName(_track.Album));
         _index = index;
@@ -31,28 +34,40 @@ internal class TrackProcessor
     public async Task<TrackProcessStatus> ProcessAsync()
     {
         Directory.CreateDirectory(_albumDir);
-
         string outputFile = GetOutputFile(_track);
 
         if (File.Exists(outputFile))
         {
-            if (AudioProber.IsMetadataUpToDate(outputFile, _track, out string? mismatch))
-            {
-                return TrackProcessStatus.Skipped;
-            }
-
-            bool updated = await UpdateMetadataInPlaceAsync(outputFile);
-            if (updated)
-            {
-                AnsiConsole.MarkupLine($"{GetLogPrefix().EscapeMarkup()}[green]Updated metadata: [white]{_track.Title.EscapeMarkup()}[/][/]");
-                if (!string.IsNullOrEmpty(mismatch))
-                {
-                    AnsiConsole.MarkupLine(mismatch);
-                }
-            }
-            return updated ? TrackProcessStatus.MetadataUpdated : TrackProcessStatus.Failed;
+            return await HandleExistingFileAsync(outputFile);
         }
 
+        return await DownloadAndProcessNewTrackAsync(outputFile);
+    }
+
+    private async Task<TrackProcessStatus> HandleExistingFileAsync(string outputFile)
+    {
+        if (AudioProber.IsMetadataUpToDate(outputFile, _track, out string? mismatch))
+        {
+            return TrackProcessStatus.Skipped;
+        }
+
+        bool updated = await UpdateMetadataInPlaceAsync(outputFile);
+        if (updated)
+        {
+            AnsiConsole.MarkupLine($"{GetLogPrefix().EscapeMarkup()}[green]Updated metadata: [white]{_track.Title.EscapeMarkup()}[/][/]");
+            if (!string.IsNullOrEmpty(mismatch))
+            {
+                AnsiConsole.MarkupLine(mismatch);
+            }
+        }
+
+        return updated
+            ? TrackProcessStatus.MetadataUpdated
+            : TrackProcessStatus.Failed;
+    }
+
+    private async Task<TrackProcessStatus> DownloadAndProcessNewTrackAsync(string outputFile)
+    {
         string tempFileBase = Path.Combine(_albumDir, "temp");
         string finalTempOut = Path.Combine(_albumDir, "out." + SettingsManager.Current.AudioFormat);
 
@@ -68,7 +83,7 @@ internal class TrackProcessor
             string? downloadedAudio = FindDownloadedFile(tempFileBase);
             if (downloadedAudio is null)
             {
-                AnsiConsole.MarkupLine($"[red]Download reported success, but no audio file was found.[/]");
+                AnsiConsole.MarkupLine("[red]Download reported success, but no audio file was found.[/]");
                 return TrackProcessStatus.Failed;
             }
 
@@ -112,8 +127,13 @@ internal class TrackProcessor
 
         return candidates.FirstOrDefault(f =>
         {
-            string ext = Path.GetExtension(f).ToLowerInvariant();
-            return ext is not ".webp" and not ".jpg" and not ".png" and not ".json" and not ".part" and not ".ytdl";
+            return Path.GetExtension(f).ToLowerInvariant()
+                is not ".webp"
+                and not ".jpg"
+                and not ".png"
+                and not ".json"
+                and not ".part"
+                and not ".ytdl";
         });
     }
 
@@ -141,7 +161,7 @@ internal class TrackProcessor
 
             if (exitCode != 0)
             {
-                AnsiConsole.MarkupLine($"[red]Download failed.[/]");
+                AnsiConsole.MarkupLine("[red]Download failed.[/]");
                 return false;
             }
 
@@ -154,7 +174,7 @@ internal class TrackProcessor
         }
     }
 
-    private async Task<bool> ProcessAudioAsync(Track track, string inputFile, string? coverFile, string outputFile)
+    private static async Task<bool> ProcessAudioAsync(Track track, string inputFile, string? coverFile, string outputFile)
     {
         ProcessArguments command = new FfmpegCommandBuilder(track, inputFile, outputFile, coverFile).Build();
         string ffmpegPath = ExecutableFinder.GetFullPath(SettingsManager.Current.FfmpegExe, SettingsManager.Current.FfmpegDir);
@@ -165,7 +185,7 @@ internal class TrackProcessor
 
             if (exitCode != 0)
             {
-                AnsiConsole.MarkupLine($"[red]ffmpeg processing failed.[/]");
+                AnsiConsole.MarkupLine("[red]ffmpeg processing failed.[/]");
                 return false;
             }
         }
@@ -192,7 +212,7 @@ internal class TrackProcessor
 
             if (exitCode != 0)
             {
-                AnsiConsole.MarkupLine($"[red]ffmpeg metadata update failed.[/]");
+                AnsiConsole.MarkupLine("[red]ffmpeg metadata update failed.[/]");
                 return false;
             }
 

@@ -29,7 +29,7 @@ internal static class TomlTrackReader
         foreach (string tomlFile in tomlFiles)
         {
             List<Track> fileTracks = await GetTracksFromSingleTomlAsync(tomlFile);
-            if (fileTracks.Count <= 0)
+            if (fileTracks.Count == 0)
             {
                 continue;
             }

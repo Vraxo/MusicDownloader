@@ -15,24 +15,28 @@ internal class ProcessExecutor
 
             proc.OutputDataReceived += (_, e) =>
             {
-                if (!string.IsNullOrEmpty(e.Data) && !IsProgressLine(e.Data) && !IsNoiseLine(e.Data))
+                if (string.IsNullOrEmpty(e.Data) || IsProgressLine(e.Data) || IsNoiseLine(e.Data))
                 {
-                    Log.Info(e.Data);
+                    return;
                 }
+
+                Log.Info(e.Data);
             };
 
             proc.ErrorDataReceived += (_, e) =>
             {
-                if (!string.IsNullOrEmpty(e.Data) && !IsProgressLine(e.Data))
+                if (string.IsNullOrEmpty(e.Data) || IsProgressLine(e.Data))
                 {
-                    if (stdErrHandler is not null)
-                    {
-                        stdErrHandler(e.Data);
-                    }
-                    else
-                    {
-                        HandleStdErr(e.Data);
-                    }
+                    return;
+                }
+
+                if (stdErrHandler is not null)
+                {
+                    stdErrHandler(e.Data);
+                }
+                else
+                {
+                    HandleStdErr(e.Data);
                 }
             };
 
@@ -65,17 +69,21 @@ internal class ProcessExecutor
 
             proc.OutputDataReceived += (_, e) =>
             {
-                if (e.Data is not null)
+                if (e.Data is null)
                 {
-                    output.AppendLine(e.Data);
+                    return;
                 }
+
+                output.AppendLine(e.Data);
             };
             proc.ErrorDataReceived += (_, e) =>
             {
-                if (e.Data is not null)
+                if (e.Data is null)
                 {
-                    error.AppendLine(e.Data);
+                    return;
                 }
+
+                error.AppendLine(e.Data);
             };
 
             proc.Start();
@@ -83,7 +91,10 @@ internal class ProcessExecutor
             proc.BeginErrorReadLine();
             proc.WaitForExit();
 
-            return new(proc.ExitCode, output.ToString().Trim(), error.ToString().Trim());
+            return new(
+                proc.ExitCode,
+                output.ToString().Trim(),
+                error.ToString().Trim());
         }
         catch (Win32Exception)
         {

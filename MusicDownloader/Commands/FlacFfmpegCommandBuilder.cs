@@ -15,11 +15,8 @@ internal sealed class FlacFfmpegCommandBuilder(
         List<string> args = ["-y", "-v", "error"];
 
         args.AddRange(BuildTrimOptions());
-
         args.AddRange(["-i", inputFile]);
-
         args.AddRange(BuildFilterOptions());
-
         args.AddRange(["-map", "0", "-map_metadata", "-1"]);
 
         if (tempo is > 0)
@@ -32,7 +29,6 @@ internal sealed class FlacFfmpegCommandBuilder(
         }
 
         args.Add(outputFile);
-
         return args;
     }
 
@@ -45,8 +41,8 @@ internal sealed class FlacFfmpegCommandBuilder(
 
         string start = range[0];
         string end = range[1];
-
         List<string> trimArgs = [];
+
         if (!string.IsNullOrEmpty(start))
         {
             trimArgs.AddRange(["-ss", start]);

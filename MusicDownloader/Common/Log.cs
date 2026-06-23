@@ -31,7 +31,7 @@ internal sealed class Log
 
     private static void WriteColored(string message, Color color)
     {
-        AnsiConsole.Write(new Text(message, new Style(foreground: color)));
+        AnsiConsole.Write(new Text(message, new(foreground: color)));
         AnsiConsole.WriteLine();
     }
 }

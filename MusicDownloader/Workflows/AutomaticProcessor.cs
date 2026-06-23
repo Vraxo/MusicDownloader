@@ -14,7 +14,7 @@ internal static class AutomaticProcessor
             return;
         }
 
-        (List<Track> pendingTracks, int alreadyDownloadedCount, int metadataUpdatesCount, int newDownloadsCount) = await FilterPendingTracksAsync(allTracks);
+        (List<Track>? pendingTracks, int alreadyDownloadedCount, int metadataUpdatesCount, int newDownloadsCount) = await FilterPendingTracksAsync(allTracks);
 
         if (pendingTracks.Count == 0)
         {
@@ -30,7 +30,7 @@ internal static class AutomaticProcessor
         Log.Success("All downloads and processing finished.");
     }
 
-    private static async Task<(List<Track> Pending, int UpToDate, int MetadataUpdates, int NewDownloads)> FilterPendingTracksAsync(IReadOnlyList<Track> tracks)
+    private static async Task<(List<Track> Pending, int UpToDate, int MetadataUpdates, int NewDownloads)> FilterPendingTracksAsync(List<Track> tracks)
     {
         List<Track> pending = [];
         int upToDate = 0;
@@ -77,7 +77,7 @@ internal static class AutomaticProcessor
 
         for (int i = 0; i < total; i++)
         {
-            var (isUpToDate, isNewDownload) = results[i];
+            (bool isUpToDate, bool isNewDownload) = results[i];
             if (isUpToDate)
             {
                 upToDate++;
@@ -112,6 +112,7 @@ internal static class AutomaticProcessor
         AnsiConsole.MarkupLine("[green]Processing results:[/]");
         AnsiConsole.MarkupLine($"[gray]  Newly downloaded:[/] [white]{downloaded}[/]");
         AnsiConsole.MarkupLine($"[gray]  Metadata updated:[/] [white]{metadataUpdated}[/]");
+
         if (failed > 0)
         {
             AnsiConsole.MarkupLine($"[yellow]  Failed downloads:[/] [white]{failed}[/]");
@@ -120,11 +121,12 @@ internal static class AutomaticProcessor
         {
             AnsiConsole.MarkupLine($"[gray]  Failed downloads:[/] [white]{failed}[/]");
         }
+
         AnsiConsole.MarkupLine($"[gray]  Up to date:[/]       [white]{upToDate}[/]");
         Console.WriteLine();
     }
 
-    private static async Task<(int Downloaded, int MetadataUpdated, int Failed, int UpToDate)> ProcessQueueAsync(IReadOnlyList<Track> queue, int alreadyDownloadedCount)
+    private static async Task<(int Downloaded, int MetadataUpdated, int Failed, int UpToDate)> ProcessQueueAsync(List<Track> queue, int alreadyDownloadedCount)
     {
         int downloaded = 0;
         int metadataUpdated = 0;

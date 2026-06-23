@@ -2,18 +2,13 @@
 
 namespace MusicDownloader.Infrastructure;
 
-internal sealed class ProcessArguments : IReadOnlyList<string>
+internal sealed class ProcessArguments(IEnumerable<string> args) : IReadOnlyList<string>
 {
-    private readonly List<string> _args;
+    private readonly List<string> _args = [.. args];
 
     public int Count => _args.Count;
 
     public string this[int index] => _args[index];
-
-    public ProcessArguments(IEnumerable<string> args)
-    {
-        _args = [.. args];
-    }
 
     public IEnumerator<string> GetEnumerator()
     {
@@ -63,7 +58,9 @@ internal sealed class ProcessArguments : IReadOnlyList<string>
             }
         }
 
-        return NeedsQuoting(arg) ? $"\"{arg.Replace("\"", "\\\"")}\"" : arg;
+        return NeedsQuoting(arg)
+            ? $"\"{arg.Replace("\"", "\\\"")}\""
+            : arg;
     }
 
     private static bool NeedsQuoting(string arg)

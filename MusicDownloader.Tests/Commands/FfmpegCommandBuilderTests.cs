@@ -4,7 +4,7 @@ using MusicDownloader.Common;
 
 namespace MusicDownloader.Tests.Commands;
 
-public class FfmpegCommandBuilderTests
+public sealed class FfmpegCommandBuilderTests
 {
     [Fact]
     public void Build_WithBasicTrack_ReturnsSimpleCommand()

@@ -3,16 +3,10 @@ using MusicDownloader.Infrastructure;
 
 namespace MusicDownloader.Commands;
 
-internal sealed class YtDlpCommandBuilder
+internal sealed class YtDlpCommandBuilder(Track track, string tempFileBase)
 {
-    private readonly Track _track;
-    private readonly string _tempFileBase;
-
-    public YtDlpCommandBuilder(Track track, string tempFileBase)
-    {
-        _track = track;
-        _tempFileBase = tempFileBase;
-    }
+    private readonly Track _track = track;
+    private readonly string _tempFileBase = tempFileBase;
 
     public ProcessArguments Build()
     {

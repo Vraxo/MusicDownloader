@@ -1,7 +1,7 @@
 ﻿[*.cs]
 
 # IDE0290: Use primary constructor
-csharp_style_prefer_primary_constructors = false:suggestion
+csharp_style_prefer_primary_constructors = true:warning
 
 # IDE0046: Convert to conditional expression
 # Prevents converting if/else statements to ternary operators (?:) for assignments
@@ -96,3 +96,4 @@ dotnet_style_operator_placement_when_wrapping = beginning_of_line
 tab_width = 4
 indent_size = 4
 end_of_line = crlf
+dotnet_style_prefer_simplified_interpolation = true:suggestion

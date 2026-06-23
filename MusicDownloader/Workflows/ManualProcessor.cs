@@ -34,13 +34,9 @@ internal static class ManualProcessor
         string rangeInput = UserInput.GetTrimRange();
         IReadOnlyList<string> range = [];
 
-        if (!string.IsNullOrWhiteSpace(rangeInput))
+        if (TrackParser.TryParseRange(rangeInput, out string start, out string end))
         {
-            string[] parts = rangeInput.Split('-');
-            if (parts.Length == 2)
-            {
-                range = [parts[0].Trim(), parts[1].Trim()];
-            }
+            range = [start, end];
         }
 
         string outputFile = ResolveOutputFile(inputFile);
@@ -88,14 +84,14 @@ internal static class ManualProcessor
         int exitCode = ProcessExecutor.Run(ffmpegPath, command);
 
         Console.WriteLine();
-        if (exitCode == 0)
-        {
-            Log.Success("Successfully processed audio. Output saved to:");
-            Log.Success(outputFile);
-        }
-        else
+
+        if (exitCode != 0)
         {
             Log.Error($"ffmpeg processing failed with exit code {exitCode}.");
+            return;
         }
+
+        Log.Success("Successfully processed audio. Output saved to:");
+        Log.Success(outputFile);
     }
 }

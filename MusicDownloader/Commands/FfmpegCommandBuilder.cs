@@ -4,26 +4,18 @@ using System.Globalization;
 
 namespace MusicDownloader.Commands;
 
-internal sealed class FfmpegCommandBuilder
+internal sealed class FfmpegCommandBuilder(Track track, string inputFile, string outputFile, string? coverFile = null)
 {
-    private readonly Track _track;
-    private readonly string _inputFile;
-    private readonly string _outputFile;
-    private readonly string? _coverFile;
-
-    public FfmpegCommandBuilder(Track track, string inputFile, string outputFile, string? coverFile = null)
-    {
-        _track = track;
-        _inputFile = inputFile;
-        _outputFile = outputFile;
-        _coverFile = coverFile;
-    }
+    private readonly Track _track = track;
+    private readonly string _inputFile = inputFile;
+    private readonly string _outputFile = outputFile;
+    private readonly string? _coverFile = coverFile;
 
     public ProcessArguments Build()
     {
         int loopCount = _track.Loop;
-        string start = _track.Range.Count == 2 ? _track.Range[0] : "";
-        string end = _track.Range.Count == 2 ? _track.Range[1] : "";
+        string start = _track.Range.Count == 2 ? _track.Range[0] : string.Empty;
+        string end = _track.Range.Count == 2 ? _track.Range[1] : string.Empty;
         bool hasTrim = !string.IsNullOrEmpty(start) || !string.IsNullOrEmpty(end);
         string tempoFilter = BuildTempoFilterContent();
         bool hasFilter = !string.IsNullOrEmpty(tempoFilter) || loopCount > 1;
@@ -36,7 +28,6 @@ internal sealed class FfmpegCommandBuilder
             {
                 args.AddRange(["-ss", start]);
             }
-
             if (!string.IsNullOrEmpty(end))
             {
                 args.AddRange(["-to", end]);
@@ -60,7 +51,6 @@ internal sealed class FfmpegCommandBuilder
                 {
                     atrimList.Add($"start={start}");
                 }
-
                 if (!string.IsNullOrEmpty(end))
                 {
                     atrimList.Add($"end={end}");
@@ -75,8 +65,7 @@ internal sealed class FfmpegCommandBuilder
                 filterList.Add(tempoFilter);
             }
 
-            string filterChain = string.Join(",", filterList);
-            args.AddRange(["-filter_complex", $"[0:a]{filterChain}[outa]", "-map", "[outa]"]);
+            args.AddRange(["-filter_complex", $"[0:a]{string.Join(",", filterList)}[outa]", "-map", "[outa]"]);
         }
         else
         {
@@ -155,8 +144,7 @@ internal sealed class FfmpegCommandBuilder
 
         if (_track.Tags.Count > 0)
         {
-            string tagsJoined = string.Join(", ", _track.Tags);
-            meta.AddRange(["-metadata", $"genre={tagsJoined}"]);
+            meta.AddRange(["-metadata", $"genre={string.Join(", ", _track.Tags)}"]);
         }
 
         if (!string.IsNullOrWhiteSpace(_track.Source))
@@ -171,7 +159,7 @@ internal sealed class FfmpegCommandBuilder
     {
         if (_track.Tempo is null or <= 0)
         {
-            return "";
+            return string.Empty;
         }
 
         double tempoMultiplier = _track.Tempo.Value / 100.0;

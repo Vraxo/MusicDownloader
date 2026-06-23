@@ -22,9 +22,9 @@ internal sealed class Settings
 
     public int AudioBitrateKbps { get; set; } = 320;
 
-    public bool PreservePitchWhenChangingTempo { get; set; } = false;
+    public bool PreservePitchWhenChangingTempo { get; set; }
 
     public int DelayBetweenDownloadsMs { get; set; } = 2500;
 
-    public string? CookiesBrowser { get; set; } = null;
+    public string? CookiesBrowser { get; set; }
 }

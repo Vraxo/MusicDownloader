@@ -56,7 +56,7 @@ internal static class PlaylistWriter
         return map;
     }
 
-    private static async Task GenerateSinglePlaylistAsync(string tag, IReadOnlyList<Track> tracks)
+    private static async Task GenerateSinglePlaylistAsync(string tag, List<Track> tracks)
     {
         Log.Action($"Generating playlist for tag: '{tag}'...");
 
