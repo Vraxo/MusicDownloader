@@ -26,7 +26,7 @@ internal static class SettingsManager
             }
             else
             {
-                _ = Directory.CreateDirectory("Data");
+                Directory.CreateDirectory("Data");
                 string serialized = TomlSerializer.Serialize(settings);
                 File.WriteAllText(SettingsFile, serialized);
                 Log.Info($"Created default configuration file: '{SettingsFile}'");

@@ -6,7 +6,7 @@ internal sealed class Settings
 
     public string BaseDataDir { get; set; } = "Music";
 
-    public string CookieFile { get; set; } = Path.Combine("Data", "Cookies.txt");
+    public string CookieFile { get; set; } = Path.Combine("Data", "cookies.txt");
 
     public string PlaylistCheckReportFile { get; set; } = Path.Combine("Data", "PlaylistReport.txt");
 

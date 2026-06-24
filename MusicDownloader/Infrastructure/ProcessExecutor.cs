@@ -169,7 +169,7 @@ internal class ProcessExecutor
         if (data.Contains("DPAPI", StringComparison.OrdinalIgnoreCase))
         {
             Log.Error("Chrome cookie extraction failed due to a recent Google Chrome update.");
-            Log.Error("Solution: Open 'Data/settings.toml', set CookiesBrowser = \"\", and use 'Cookies.txt' instead.");
+            Log.Error("Solution: Open 'Data/settings.toml', set CookiesBrowser = \"\", and use 'cookies.txt' instead.");
             return;
         }
 

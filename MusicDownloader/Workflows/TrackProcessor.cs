@@ -1,7 +1,6 @@
 ﻿using MusicDownloader.Commands;
 using MusicDownloader.Common;
 using MusicDownloader.Infrastructure;
-using Pragmatic.Extensions;
 using Spectre.Console;
 using System.ComponentModel;
 
@@ -16,8 +15,6 @@ internal class TrackProcessor
 
     public TrackProcessor(Track track, int index = 0, int total = 0)
     {
-        bool yes = "fuck".IsNullOrWhiteSpace;
-
         _track = track;
         _albumDir = Path.Combine(SettingsManager.Current.BaseDataDir, PathUtils.SafeFileName(_track.Album));
         _index = index;
