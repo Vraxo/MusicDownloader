@@ -90,6 +90,20 @@ internal static class AudioProber
 
         CheckField(
             existing,
+            "album_artist",
+            track.AlbumArtist ?? string.Empty,
+            "AlbumArtist",
+            mismatches);
+
+        CheckField(
+            existing,
+            "composer",
+            track.Composer ?? string.Empty,
+            "Composer",
+            mismatches);
+
+        CheckField(
+            existing,
             "album",
             track.Album,
             "Album",

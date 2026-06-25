@@ -16,6 +16,8 @@ public sealed class TomlTrackFormatterTests
                 {
                     Source = "https://www.youtube.com/watch?v=123",
                     Artist = "Artist Name",
+                    AlbumArtist = "Album Artist Name",
+                    Composer = "Composer Name",
                     Album = "Album Name",
                     Title = "Song Title"
                 }
@@ -28,12 +30,14 @@ public sealed class TomlTrackFormatterTests
 
         int sourceIndex = formatted.IndexOf("Source =");
         int artistIndex = formatted.IndexOf("Artist =");
+        int albumArtistIndex = formatted.IndexOf("AlbumArtist =");
+        int composerIndex = formatted.IndexOf("Composer =");
         int albumIndex = formatted.IndexOf("Album =");
-        int titleIndex = formatted.IndexOf("Title =");
 
         sourceIndex.Should().BeLessThan(artistIndex);
-        artistIndex.Should().BeLessThan(albumIndex);
-        albumIndex.Should().BeLessThan(titleIndex);
+        artistIndex.Should().BeLessThan(albumArtistIndex);
+        albumArtistIndex.Should().BeLessThan(composerIndex);
+        composerIndex.Should().BeLessThan(albumIndex);
     }
 
     [Fact]

@@ -125,6 +125,17 @@ internal sealed class FfmpegCommandBuilder(Track track, string inputFile, string
 
         meta.AddRange(["-metadata", $"title={_track.Title}"]);
         meta.AddRange(["-metadata", $"artist={_track.Artist}"]);
+
+        if (!string.IsNullOrWhiteSpace(_track.AlbumArtist))
+        {
+            meta.AddRange(["-metadata", $"album_artist={_track.AlbumArtist}"]);
+        }
+
+        if (!string.IsNullOrWhiteSpace(_track.Composer))
+        {
+            meta.AddRange(["-metadata", $"composer={_track.Composer}"]);
+        }
+
         meta.AddRange(["-metadata", $"album={_track.Album}"]);
 
         if (_track.TrackNumber.HasValue)

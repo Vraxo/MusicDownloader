@@ -73,6 +73,8 @@ internal sealed class ProcessArguments(IEnumerable<string> args) : IReadOnlyList
         return key
             is "title"
             or "artist"
+            or "album_artist"
+            or "composer"
             or "album"
             or "track"
             or "disc"

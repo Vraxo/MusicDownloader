@@ -6,6 +6,10 @@ internal sealed record Track
 
     public string Artist { get; init; } = string.Empty;
 
+    public string? AlbumArtist { get; init; }
+
+    public string? Composer { get; init; }
+
     public string Album { get; init; } = string.Empty;
 
     public string Title { get; init; } = string.Empty;

@@ -21,6 +21,8 @@ internal static class TomlTrackFormatter
             builder.AppendLine("[[Song]]");
             AppendString(builder, "Source", track.Source);
             AppendString(builder, "Artist", track.Artist);
+            AppendString(builder, "AlbumArtist", track.AlbumArtist);
+            AppendString(builder, "Composer", track.Composer);
             AppendString(builder, "Album", track.Album);
             AppendString(builder, "Title", track.Title);
             AppendNumber(builder, "TrackNumber", track.TrackNumber);
