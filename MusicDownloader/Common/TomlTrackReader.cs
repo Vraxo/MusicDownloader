@@ -58,6 +58,15 @@ internal static class TomlTrackReader
                 return [];
             }
 
+            string formatted = TomlTrackFormatter.Format(collection);
+            string contentNormalized = content.Replace("\r\n", "\n").Trim();
+            string formattedNormalized = formatted.Replace("\r\n", "\n").Trim();
+
+            if (!string.Equals(contentNormalized, formattedNormalized, StringComparison.Ordinal))
+            {
+                await File.WriteAllTextAsync(filePath, formatted);
+            }
+
             return [.. collection.Song.Where(t => !string.IsNullOrWhiteSpace(t.Source))];
         }
         catch (Exception ex)
