@@ -23,7 +23,10 @@ internal class TrackProcessor
 
     public static string GetOutputFile(Track track)
     {
-        string albumDir = Path.Combine(SettingsManager.Current.BaseDataDir, PathUtils.SafeFileName(track.Album));
+        string albumDir = Path.Combine(
+            SettingsManager.Current.BaseDataDir,
+            PathUtils.SafeFileName(track.Album));
+
         return Path.Combine(albumDir, PathUtils.SafeFileName(track.Title) + ".opus");
     }
 
@@ -67,9 +70,7 @@ internal class TrackProcessor
         string tempFileBase = Path.Combine(_albumDir, "temp");
         string finalTempOut = Path.Combine(_albumDir, "out.opus");
 
-        string coverFileName = string.IsNullOrWhiteSpace(_track.Cover)
-            ? $"{PathUtils.SafeFileName(_track.Title)}.png"
-            : Path.GetFileName(_track.Cover.Replace("[[", "").Replace("]]", "").Replace("/", "\\"));
+        string coverFileName = PathUtils.GetCoverFileName(_track);
 
         Directory.CreateDirectory(SettingsManager.Current.CoversDir);
         string finalCoverPath = Path.Combine(SettingsManager.Current.CoversDir, coverFileName);
@@ -232,7 +233,7 @@ internal class TrackProcessor
             return;
         }
 
-        using IEnumerable<string> tempFiles = Directory.EnumerateFiles(_albumDir, "temp.*")
+        IEnumerable<string> tempFiles = Directory.EnumerateFiles(_albumDir, "temp.*")
             .Concat(Directory.EnumerateFiles(_albumDir, "out.*"));
 
         foreach (string file in tempFiles)

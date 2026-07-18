@@ -32,25 +32,26 @@ internal static class AudioProber
             CheckField(tag.FirstComposer, track.Composer ?? string.Empty, "Composer", mismatches);
             CheckField(tag.Album, track.Album, "Album", mismatches);
 
-            string trackNum = track.TrackNumber?.ToString() ?? "0";
-            if (trackNum == "0" && tag.Track == 0) { }
-            else
+            uint trackNum = (uint)(track.TrackNumber ?? 0);
+            if (tag.Track != trackNum)
             {
-                CheckField(tag.Track.ToString(), trackNum, "Track", mismatches);
+                CheckField(tag.Track.ToString(), trackNum.ToString(), "Track", mismatches);
             }
 
-            string discNum = track.DiscNumber?.ToString() ?? "0";
-            if (discNum == "0" && tag.Disc == 0) { }
-            else
+            uint discNum = (uint)(track.DiscNumber ?? 0);
+            if (tag.Disc != discNum)
             {
-                CheckField(tag.Disc.ToString(), discNum, "Disc", mismatches);
+                CheckField(tag.Disc.ToString(), discNum.ToString(), "Disc", mismatches);
             }
 
-            string expectedYear = string.IsNullOrWhiteSpace(track.Date) ? "0" : (track.Date.Length >= 4 ? track.Date[..4] : "0");
-            if (expectedYear == "0" && tag.Year == 0) { }
-            else
+            uint expectedYear = 0;
+            if (!string.IsNullOrWhiteSpace(track.Date) && track.Date.Length >= 4 && uint.TryParse(track.Date[..4], out uint parsedYear))
             {
-                CheckField(tag.Year.ToString(), expectedYear, "Date", mismatches);
+                expectedYear = parsedYear;
+            }
+            if (tag.Year != expectedYear)
+            {
+                CheckField(tag.Year.ToString(), expectedYear.ToString(), "Date", mismatches);
             }
 
             string expectedGenre = track.Tags.Count > 0 ? string.Join(", ", track.Tags) : string.Empty;
@@ -64,8 +65,7 @@ internal static class AudioProber
 
             if (expectsCover)
             {
-                string cleanLink = track.Cover!.Replace("[[", "").Replace("]]", "").Replace("/", "\\");
-                string coverFileName = Path.GetFileName(cleanLink);
+                string coverFileName = PathUtils.GetCoverFileName(track);
                 string coverPath = Path.Combine(SettingsManager.Current.CoversDir, coverFileName);
 
                 if (File.Exists(coverPath))

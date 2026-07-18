@@ -34,8 +34,6 @@ internal sealed class FfmpegCommandBuilder(Track track, string inputFile, string
         }
 
         args.AddRange(["-i", _inputFile]);
-
-        // Strip any video/thumbnail streams to ensure a pure audio container
         args.Add("-vn");
 
         if (loopCount > 1)
@@ -75,7 +73,6 @@ internal sealed class FfmpegCommandBuilder(Track track, string inputFile, string
 
         if (hasFilter)
         {
-            // Hardcoded to 160k: the mathematically transparent ceiling for stereo Opus, matching YouTube's maximum source.
             args.AddRange(["-c:a", "libopus", "-b:a", "160k"]);
         }
         else

@@ -29,8 +29,7 @@ internal static class TrackTagger
 
             if (!string.IsNullOrWhiteSpace(track.Cover))
             {
-                string cleanLink = track.Cover.Replace("[[", "").Replace("]]", "").Replace("/", "\\");
-                string coverFileName = Path.GetFileName(cleanLink);
+                string coverFileName = PathUtils.GetCoverFileName(track);
                 string coverPath = Path.Combine(SettingsManager.Current.CoversDir, coverFileName);
 
                 if (File.Exists(coverPath))
