@@ -8,7 +8,7 @@ internal static class PlaylistWriter
 {
     public static async Task GeneratePlaylistsAsync()
     {
-        List<Track> allTracks = await TomlTrackReader.ReadAllTracksAsync();
+        List<Track> allTracks = await MarkdownTrackReader.ReadAllTracksAsync();
 
         if (allTracks.Count == 0)
         {
@@ -66,12 +66,11 @@ internal static class PlaylistWriter
             .ThenBy(t => t.Title, StringComparer.OrdinalIgnoreCase)];
 
         StringBuilder contentBuilder = new();
-        string format = SettingsManager.Current.AudioFormat;
 
         for (int i = 0; i < sortedTracks.Count; i++)
         {
             Track track = sortedTracks[i];
-            string relativePath = GetRelativePath(format, track);
+            string relativePath = GetRelativePath(track);
 
             contentBuilder.AppendLine(relativePath);
 
@@ -96,10 +95,10 @@ internal static class PlaylistWriter
         }
     }
 
-    private static string GetRelativePath(string format, Track track)
+    private static string GetRelativePath(Track track)
     {
         return Path.Combine(
             PathUtils.SafeFileName(track.Album),
-            $"{PathUtils.SafeFileName(track.Title)}.{format}");
+            $"{PathUtils.SafeFileName(track.Title)}.opus");
     }
 }

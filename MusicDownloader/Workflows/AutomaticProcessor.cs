@@ -8,7 +8,7 @@ internal static class AutomaticProcessor
 {
     public static async Task RunAsync()
     {
-        List<Track> allTracks = await TomlTrackReader.ReadAllTracksAsync();
+        List<Track> allTracks = await MarkdownTrackReader.ReadAllTracksAsync();
         if (allTracks.Count == 0)
         {
             return;

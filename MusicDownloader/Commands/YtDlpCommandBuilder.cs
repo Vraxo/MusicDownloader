@@ -3,15 +3,16 @@ using MusicDownloader.Infrastructure;
 
 namespace MusicDownloader.Commands;
 
-internal sealed class YtDlpCommandBuilder(Track track, string tempFileBase)
+internal sealed class YtDlpCommandBuilder(Track track, string tempFileBase, bool downloadThumbnail)
 {
     private readonly Track _track = track;
     private readonly string _tempFileBase = tempFileBase;
+    private readonly bool _downloadThumbnail = downloadThumbnail;
 
     public ProcessArguments Build()
     {
         List<string> args = [
-            "-f", "bestaudio[ext=m4a]/bestaudio"
+            "-f", "bestaudio[acodec=opus]/bestaudio"
         ];
 
         if (!string.IsNullOrWhiteSpace(_track.Source))
@@ -20,7 +21,19 @@ internal sealed class YtDlpCommandBuilder(Track track, string tempFileBase)
         }
 
         args.AddRange([
-            "--write-thumbnail",
+            "-x",
+            "--audio-format", "opus"
+        ]);
+
+        if (_downloadThumbnail)
+        {
+            args.AddRange([
+                "--write-thumbnail",
+                "--convert-thumbnails", "png"
+            ]);
+        }
+
+        args.AddRange([
             "--no-add-metadata",
             "--downloader", "native",
             "--retries", "20",

@@ -2,9 +2,11 @@
 
 internal sealed class Settings
 {
-    public string DatabaseDir { get; set; } = "Database";
+    public string DatabaseDir { get; set; } = Path.Combine("Music", "base");
 
-    public string BaseDataDir { get; set; } = "Music";
+    public string CoversDir { get; set; } = Path.Combine("Music", "covers");
+
+    public string BaseDataDir { get; set; } = Path.Combine("Music", "tracks");
 
     public string CookieFile { get; set; } = Path.Combine("Data", "cookies.txt");
 
@@ -18,13 +20,9 @@ internal sealed class Settings
 
     public string FfmpegExe { get; set; } = "ffmpeg.exe";
 
-    public string AudioFormat { get; set; } = "m4a";
-
-    public int AudioBitrateKbps { get; set; } = 320;
-
     public bool PreservePitchWhenChangingTempo { get; set; }
 
     public int DelayBetweenDownloadsMs { get; set; } = 2500;
 
-    public string? CookiesBrowser { get; set; }
+    public string? CookiesBrowser { get; set; } = "firefox";
 }

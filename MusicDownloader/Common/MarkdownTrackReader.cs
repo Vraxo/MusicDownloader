@@ -1,25 +1,24 @@
-using MusicDownloader.Infrastructure;
-using Tomlyn;
+﻿using MusicDownloader.Infrastructure;
 
 namespace MusicDownloader.Common;
 
-internal static class TomlTrackReader
+internal static class MarkdownTrackReader
 {
     public static async Task<List<Track>> ReadAllTracksAsync()
     {
-        string tomlDir = SettingsManager.Current.DatabaseDir;
+        string dbDir = SettingsManager.Current.DatabaseDir;
 
-        if (!Directory.Exists(tomlDir))
+        if (!Directory.Exists(dbDir))
         {
-            Log.Error($"TOML input directory '{tomlDir}' not found.");
+            Log.Error($"Database directory '{dbDir}' not found.");
             return [];
         }
 
-        List<string> tomlFiles = [.. Directory.EnumerateFiles(tomlDir, "*.toml", SearchOption.AllDirectories)];
+        List<string> mdFiles = [.. Directory.EnumerateFiles(dbDir, "*.md", SearchOption.AllDirectories)];
 
-        if (tomlFiles.Count == 0)
+        if (mdFiles.Count == 0)
         {
-            Log.Warning($"No .toml files found in '{tomlDir}'.");
+            Log.Warning($"No .md files found in '{dbDir}'.");
             return [];
         }
 
@@ -29,9 +28,9 @@ internal static class TomlTrackReader
         int successfullyLoadedFiles = 0;
         int reformattedCount = 0;
 
-        foreach (string tomlFile in tomlFiles)
+        foreach (string mdFile in mdFiles)
         {
-            (List<Track> fileTracks, bool wasReformatted) = await GetTracksFromSingleTomlAsync(tomlFile);
+            (List<Track> fileTracks, bool wasReformatted) = await GetTracksFromSingleMarkdownAsync(mdFile);
             if (fileTracks.Count == 0)
             {
                 continue;
@@ -63,19 +62,21 @@ internal static class TomlTrackReader
         return tracks;
     }
 
-    public static async Task<(List<Track> Tracks, bool WasReformatted)> GetTracksFromSingleTomlAsync(string filePath)
+    public static async Task<(List<Track> Tracks, bool WasReformatted)> GetTracksFromSingleMarkdownAsync(string filePath)
     {
         try
         {
             string content = await File.ReadAllTextAsync(filePath);
-            SongCollection? collection = TomlSerializer.Deserialize<SongCollection?>(content);
+            (Track track, string body) = MarkdownTrackFormatter.Parse(content, filePath);
 
-            if (collection?.Song is null)
+            if (string.IsNullOrWhiteSpace(track.Source))
             {
                 return ([], false);
             }
 
-            string formatted = TomlTrackFormatter.Format(collection);
+            Track trackWithFile = track with { DatabaseFilePath = filePath };
+
+            string formatted = MarkdownTrackFormatter.Format(trackWithFile, body);
             string contentNormalized = content.Replace("\r\n", "\n").Trim();
             string formattedNormalized = formatted.Replace("\r\n", "\n").Trim();
             bool wasReformatted = false;
@@ -87,12 +88,11 @@ internal static class TomlTrackReader
                 wasReformatted = true;
             }
 
-            List<Track> validTracks = [.. collection.Song.Where(t => !string.IsNullOrWhiteSpace(t.Source))];
-            return (validTracks, wasReformatted);
+            return ([trackWithFile], wasReformatted);
         }
         catch (Exception ex)
         {
-            Log.Error($"Failed to read or parse TOML file '{filePath}': {ex.Message}");
+            Log.Error($"Failed to read or parse Markdown file '{filePath}': {ex.Message}");
             return ([], false);
         }
     }

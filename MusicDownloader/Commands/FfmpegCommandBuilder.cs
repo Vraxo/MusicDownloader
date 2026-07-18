@@ -4,12 +4,11 @@ using System.Globalization;
 
 namespace MusicDownloader.Commands;
 
-internal sealed class FfmpegCommandBuilder(Track track, string inputFile, string outputFile, string? coverFile = null)
+internal sealed class FfmpegCommandBuilder(Track track, string inputFile, string outputFile)
 {
     private readonly Track _track = track;
     private readonly string _inputFile = inputFile;
     private readonly string _outputFile = outputFile;
-    private readonly string? _coverFile = coverFile;
 
     public ProcessArguments Build()
     {
@@ -36,10 +35,8 @@ internal sealed class FfmpegCommandBuilder(Track track, string inputFile, string
 
         args.AddRange(["-i", _inputFile]);
 
-        if (_coverFile is not null)
-        {
-            args.AddRange(["-i", _coverFile]);
-        }
+        // Strip any video/thumbnail streams to ensure a pure audio container
+        args.Add("-vn");
 
         if (loopCount > 1)
         {
@@ -76,94 +73,19 @@ internal sealed class FfmpegCommandBuilder(Track track, string inputFile, string
             args.AddRange(["-map", "0:a"]);
         }
 
-        if (_coverFile is not null)
-        {
-            args.AddRange(["-map", "1:0"]);
-        }
-        else
-        {
-            args.AddRange(["-map", "0:v?"]);
-        }
-
-        args.AddRange(BuildMetadataArgs());
-        args.AddRange(["-map_metadata", "-1"]);
-
         if (hasFilter)
         {
-            args.AddRange(["-c:a", "aac", "-b:a", $"{SettingsManager.Current.AudioBitrateKbps}k"]);
+            // Hardcoded to 160k: the mathematically transparent ceiling for stereo Opus, matching YouTube's maximum source.
+            args.AddRange(["-c:a", "libopus", "-b:a", "160k"]);
         }
         else
         {
             args.AddRange(["-c:a", "copy"]);
         }
 
-        if (_coverFile is not null)
-        {
-            args.AddRange(["-c:v", "mjpeg", "-disposition:v:0", "attached_pic"]);
-        }
-        else
-        {
-            args.AddRange(["-c:v", "copy"]);
-        }
-
         args.Add(_outputFile);
 
         return args;
-    }
-
-    public ProcessArguments BuildMetadataUpdate(string inputFile, string outputFile)
-    {
-        List<string> args = ["-y", "-v", "error", "-i", inputFile, "-map", "0"];
-        args.AddRange(BuildMetadataArgs());
-        args.AddRange(["-map_metadata", "-1", "-c", "copy", outputFile]);
-        return args;
-    }
-
-    private List<string> BuildMetadataArgs()
-    {
-        List<string> meta = [];
-
-        meta.AddRange(["-metadata", $"title={_track.Title}"]);
-        meta.AddRange(["-metadata", $"artist={_track.Artist}"]);
-
-        if (!string.IsNullOrWhiteSpace(_track.AlbumArtist))
-        {
-            meta.AddRange(["-metadata", $"album_artist={_track.AlbumArtist}"]);
-        }
-
-        if (!string.IsNullOrWhiteSpace(_track.Composer))
-        {
-            meta.AddRange(["-metadata", $"composer={_track.Composer}"]);
-        }
-
-        meta.AddRange(["-metadata", $"album={_track.Album}"]);
-
-        if (_track.TrackNumber.HasValue)
-        {
-            meta.AddRange(["-metadata", $"track={_track.TrackNumber.Value}"]);
-        }
-
-        if (_track.DiscNumber.HasValue)
-        {
-            meta.AddRange(["-metadata", $"disc={_track.DiscNumber.Value}"]);
-        }
-
-        if (!string.IsNullOrWhiteSpace(_track.Date))
-        {
-            meta.AddRange(["-metadata", $"date={_track.Date}"]);
-        }
-
-        if (_track.Tags.Count > 0)
-        {
-            meta.AddRange(["-metadata", $"genre={string.Join(", ", _track.Tags)}"]);
-        }
-
-        if (!string.IsNullOrWhiteSpace(_track.Source))
-        {
-            meta.AddRange(["-metadata", $"comment={_track.Source}"]);
-        }
-
-        return meta;
     }
 
     private string BuildTempoFilterContent()

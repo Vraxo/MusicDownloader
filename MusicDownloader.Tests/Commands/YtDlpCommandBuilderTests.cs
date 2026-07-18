@@ -26,7 +26,7 @@ public sealed class YtDlpCommandBuilderTests : IDisposable
     }
 
     [Fact]
-    public void Build_WithValidTrack_GeneratesYtDlpCommand()
+    public void Build_WithValidTrackAndThumbnail_GeneratesYtDlpCommand()
     {
         Track track = new()
         {
@@ -37,16 +37,40 @@ public sealed class YtDlpCommandBuilderTests : IDisposable
         SettingsManager.Current.CookieFile = "nonexistent_cookie_file.txt";
         SettingsManager.Current.FfmpegDir = "";
 
-        YtDlpCommandBuilder builder = new(track, "temp_audio");
+        YtDlpCommandBuilder builder = new(track, "temp_audio", downloadThumbnail: true);
 
         string command = builder.Build();
 
-        command.Should().Contain("-f \"bestaudio[ext=m4a]/bestaudio\"");
+        command.Should().Contain("-f \"bestaudio[acodec=opus]/bestaudio\"");
+        command.Should().Contain("-x");
+        command.Should().Contain("--audio-format opus");
+        command.Should().Contain("--convert-thumbnails png");
         command.Should().Contain("\"https://www.youtube.com/watch?v=dQw4w9WgXcQ\"");
         command.Should().Contain("--write-thumbnail");
         command.Should().Contain("-o \"temp_audio.%(ext)s\"");
         command.Should().NotContain("--cookies-from-browser");
         command.Should().NotContain("--ffmpeg-location");
+    }
+
+    [Fact]
+    public void Build_WithoutThumbnail_OmitsThumbnailFlags()
+    {
+        Track track = new()
+        {
+            Title = "Download Track",
+            Source = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        };
+        SettingsManager.Current.CookiesBrowser = "";
+        SettingsManager.Current.CookieFile = "nonexistent_cookie_file.txt";
+        SettingsManager.Current.FfmpegDir = "";
+
+        YtDlpCommandBuilder builder = new(track, "temp_audio", downloadThumbnail: false);
+
+        string command = builder.Build();
+
+        command.Should().NotContain("--convert-thumbnails");
+        command.Should().NotContain("--write-thumbnail");
+        command.Should().Contain("-o \"temp_audio.%(ext)s\"");
     }
 
     [Fact]
@@ -60,7 +84,7 @@ public sealed class YtDlpCommandBuilderTests : IDisposable
         SettingsManager.Current.CookiesBrowser = "firefox";
         SettingsManager.Current.FfmpegDir = @"C:\FfmpegPath";
 
-        YtDlpCommandBuilder builder = new(track, "temp_audio");
+        YtDlpCommandBuilder builder = new(track, "temp_audio", downloadThumbnail: true);
 
         string command = builder.Build();
 

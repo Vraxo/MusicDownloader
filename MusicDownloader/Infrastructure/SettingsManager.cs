@@ -1,11 +1,12 @@
 using MusicDownloader.Common;
-using Tomlyn;
+using System.Text.Json;
 
 namespace MusicDownloader.Infrastructure;
 
 internal static class SettingsManager
 {
-    private static readonly string SettingsFile = Path.Combine("Data", "settings.toml");
+    private static readonly string SettingsFile = Path.Combine("Data", "settings.json");
+    private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
 
     public static Settings Current { get; }
 
@@ -18,7 +19,7 @@ internal static class SettingsManager
             if (File.Exists(SettingsFile))
             {
                 string content = File.ReadAllText(SettingsFile);
-                Settings? loaded = TomlSerializer.Deserialize<Settings?>(content);
+                Settings? loaded = JsonSerializer.Deserialize<Settings>(content, SerializerOptions);
                 if (loaded is not null)
                 {
                     settings = loaded;
@@ -27,7 +28,7 @@ internal static class SettingsManager
             else
             {
                 Directory.CreateDirectory("Data");
-                string serialized = TomlSerializer.Serialize(settings);
+                string serialized = JsonSerializer.Serialize(settings, SerializerOptions);
                 File.WriteAllText(SettingsFile, serialized);
                 Log.Info($"Created default configuration file: '{SettingsFile}'");
             }
@@ -35,7 +36,7 @@ internal static class SettingsManager
         catch (Exception ex)
         {
             Log.Warning(
-                $"Failed to load or write '{SettingsFile}'." +
+                $"Failed to load or write '{SettingsFile}'. " +
                 $"Using default settings. Error: {ex.Message}");
         }
 

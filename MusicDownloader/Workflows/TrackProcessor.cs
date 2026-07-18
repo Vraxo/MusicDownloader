@@ -8,7 +8,7 @@ namespace MusicDownloader.Workflows;
 
 internal class TrackProcessor
 {
-    private readonly Track _track;
+    private Track _track;
     private readonly string _albumDir;
     private readonly int _index;
     private readonly int _total;
@@ -24,8 +24,7 @@ internal class TrackProcessor
     public static string GetOutputFile(Track track)
     {
         string albumDir = Path.Combine(SettingsManager.Current.BaseDataDir, PathUtils.SafeFileName(track.Album));
-        string finalFormat = SettingsManager.Current.AudioFormat;
-        return Path.Combine(albumDir, PathUtils.SafeFileName(track.Title) + $".{finalFormat}");
+        return Path.Combine(albumDir, PathUtils.SafeFileName(track.Title) + ".opus");
     }
 
     public async Task<TrackProcessStatus> ProcessAsync()
@@ -66,13 +65,21 @@ internal class TrackProcessor
     private async Task<TrackProcessStatus> DownloadAndProcessNewTrackAsync(string outputFile)
     {
         string tempFileBase = Path.Combine(_albumDir, "temp");
-        string finalTempOut = Path.Combine(_albumDir, "out." + SettingsManager.Current.AudioFormat);
+        string finalTempOut = Path.Combine(_albumDir, "out.opus");
+
+        string coverFileName = string.IsNullOrWhiteSpace(_track.Cover)
+            ? $"{PathUtils.SafeFileName(_track.Title)}.png"
+            : Path.GetFileName(_track.Cover.Replace("[[", "").Replace("]]", "").Replace("/", "\\"));
+
+        Directory.CreateDirectory(SettingsManager.Current.CoversDir);
+        string finalCoverPath = Path.Combine(SettingsManager.Current.CoversDir, coverFileName);
+        bool coverExistsLocally = File.Exists(finalCoverPath);
 
         try
         {
             AnsiConsole.MarkupLine($"{GetLogPrefix().EscapeMarkup()}[cyan]Downloading & processing: [white]{_track.Title.EscapeMarkup()}[/][/]");
 
-            if (!await RunFullDownloadAsync(tempFileBase))
+            if (!await RunFullDownloadAsync(tempFileBase, downloadThumbnail: !coverExistsLocally))
             {
                 return TrackProcessStatus.Failed;
             }
@@ -84,13 +91,36 @@ internal class TrackProcessor
                 return TrackProcessStatus.Failed;
             }
 
-            string? downloadedCover = FindCoverFile(tempFileBase);
-            if (downloadedCover is not null)
+            if (!coverExistsLocally)
             {
-                Log.Info($"Found cover art: {Path.GetFileName(downloadedCover)}");
+                string? downloadedCover = FindCoverFile(tempFileBase);
+                if (downloadedCover is not null)
+                {
+                    string actualExt = Path.GetExtension(downloadedCover).ToLowerInvariant();
+                    coverFileName = Path.GetFileNameWithoutExtension(coverFileName) + actualExt;
+                    finalCoverPath = Path.Combine(SettingsManager.Current.CoversDir, coverFileName);
+
+                    File.Copy(downloadedCover, finalCoverPath, overwrite: true);
+                    Log.Info($"Saved stand-alone cover art to: 'Covers/{coverFileName}'");
+                }
+            }
+            else
+            {
+                Log.Info($"Re-using existing cover art: 'Covers/{coverFileName}'");
             }
 
-            if (!await ProcessAudioAsync(_track, downloadedAudio, downloadedCover, finalTempOut))
+            string expectedCoverLink = $"[[Covers/{coverFileName}]]";
+            if (!string.Equals(_track.Cover, expectedCoverLink, StringComparison.OrdinalIgnoreCase))
+            {
+                await UpdateMarkdownCoverPropertyAsync(expectedCoverLink);
+            }
+
+            if (!await ProcessAudioAsync(_track, downloadedAudio, finalTempOut))
+            {
+                return TrackProcessStatus.Failed;
+            }
+
+            if (!ApplyMetadata(finalTempOut))
             {
                 return TrackProcessStatus.Failed;
             }
@@ -147,9 +177,9 @@ internal class TrackProcessor
             ?? candidates.FirstOrDefault(f => f.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase));
     }
 
-    private async Task<bool> RunFullDownloadAsync(string tempFileBase)
+    private async Task<bool> RunFullDownloadAsync(string tempFileBase, bool downloadThumbnail)
     {
-        ProcessArguments command = new YtDlpCommandBuilder(_track, tempFileBase).Build();
+        ProcessArguments command = new YtDlpCommandBuilder(_track, tempFileBase, downloadThumbnail).Build();
         string ytDlpPath = ExecutableFinder.GetFullPath(SettingsManager.Current.YtDlpExe, SettingsManager.Current.YtDlpDir);
 
         try
@@ -171,9 +201,9 @@ internal class TrackProcessor
         }
     }
 
-    private static async Task<bool> ProcessAudioAsync(Track track, string inputFile, string? coverFile, string outputFile)
+    private static async Task<bool> ProcessAudioAsync(Track track, string inputFile, string outputFile)
     {
-        ProcessArguments command = new FfmpegCommandBuilder(track, inputFile, outputFile, coverFile).Build();
+        ProcessArguments command = new FfmpegCommandBuilder(track, inputFile, outputFile).Build();
         string ffmpegPath = ExecutableFinder.GetFullPath(SettingsManager.Current.FfmpegExe, SettingsManager.Current.FfmpegDir);
 
         try
@@ -195,42 +225,78 @@ internal class TrackProcessor
         return true;
     }
 
-    private async Task<bool> UpdateMetadataInPlaceAsync(string outputFile)
+    private bool ApplyMetadata(string filePath)
     {
-        string tempFile = Path.Combine(_albumDir, "temp_meta_update." + SettingsManager.Current.AudioFormat);
-
         try
         {
-            FfmpegCommandBuilder builder = new(_track, outputFile, tempFile);
-            ProcessArguments command = builder.BuildMetadataUpdate(outputFile, tempFile);
-            string ffmpegPath = ExecutableFinder.GetFullPath(SettingsManager.Current.FfmpegExe, SettingsManager.Current.FfmpegDir);
+            using TagLib.File file = TagLib.File.Create(filePath);
 
-            int exitCode = await Task.Run(() => ProcessExecutor.Run(ffmpegPath, command));
+            file.Tag.Title = _track.Title ?? string.Empty;
+            file.Tag.Performers = string.IsNullOrWhiteSpace(_track.Artist) ? [] : [_track.Artist];
+            file.Tag.AlbumArtists = string.IsNullOrWhiteSpace(_track.AlbumArtist) ? [] : [_track.AlbumArtist];
+            file.Tag.Composers = string.IsNullOrWhiteSpace(_track.Composer) ? [] : [_track.Composer];
+            file.Tag.Album = _track.Album ?? string.Empty;
+            file.Tag.Track = (uint)(_track.TrackNumber ?? 0);
+            file.Tag.Disc = (uint)(_track.DiscNumber ?? 0);
 
-            if (exitCode != 0)
+            if (!string.IsNullOrWhiteSpace(_track.Date) && _track.Date.Length >= 4 && uint.TryParse(_track.Date[..4], out uint year))
             {
-                AnsiConsole.MarkupLine("[red]ffmpeg metadata update failed.[/]");
-                return false;
+                file.Tag.Year = year;
             }
 
-            File.Move(tempFile, outputFile, true);
+            file.Tag.Genres = _track.Tags?.ToArray() ?? [];
+            file.Tag.Comment = _track.Source ?? string.Empty;
+
+            if (!string.IsNullOrWhiteSpace(_track.Cover))
+            {
+                string cleanLink = _track.Cover.Replace("[[", "").Replace("]]", "").Replace("/", "\\");
+                string coverFileName = Path.GetFileName(cleanLink);
+                string coverPath = Path.Combine(SettingsManager.Current.CoversDir, coverFileName);
+
+                if (File.Exists(coverPath))
+                {
+                    file.Tag.Pictures = [new TagLib.Picture(coverPath)];
+                }
+            }
+
+            file.Save();
             return true;
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[red]Failed to update metadata in-place: {ex.Message.EscapeMarkup()}[/]");
+            Log.Error($"Failed to apply metadata tags: {ex.Message}");
             return false;
         }
-        finally
+    }
+
+    private async Task<bool> UpdateMetadataInPlaceAsync(string outputFile)
+    {
+        return await Task.Run(() => ApplyMetadata(outputFile));
+    }
+
+    private async Task UpdateMarkdownCoverPropertyAsync(string expectedCoverLink)
+    {
+        if (string.IsNullOrEmpty(_track.DatabaseFilePath) || !File.Exists(_track.DatabaseFilePath))
         {
-            if (File.Exists(tempFile))
-            {
-                try
-                {
-                    File.Delete(tempFile);
-                }
-                catch { }
-            }
+            return;
+        }
+
+        try
+        {
+            string content = await File.ReadAllTextAsync(_track.DatabaseFilePath);
+            (Track parsedTrack, string body) = MarkdownTrackFormatter.Parse(content);
+
+            Track updatedTrack = parsedTrack with { Cover = expectedCoverLink };
+            string formatted = MarkdownTrackFormatter.Format(updatedTrack, body);
+
+            await File.WriteAllTextAsync(_track.DatabaseFilePath, formatted);
+
+            _track = updatedTrack with { DatabaseFilePath = _track.DatabaseFilePath };
+            Log.Success($"Linked database to: '{expectedCoverLink}'");
+        }
+        catch (Exception ex)
+        {
+            Log.Warning($"Failed to update markdown cover property: {ex.Message}");
         }
     }
 
