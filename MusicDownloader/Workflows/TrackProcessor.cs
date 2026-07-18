@@ -96,12 +96,7 @@ internal class TrackProcessor
                 string? downloadedCover = FindCoverFile(tempFileBase);
                 if (downloadedCover is not null)
                 {
-                    string actualExt = Path.GetExtension(downloadedCover).ToLowerInvariant();
-                    coverFileName = Path.GetFileNameWithoutExtension(coverFileName) + actualExt;
-                    finalCoverPath = Path.Combine(SettingsManager.Current.CoversDir, coverFileName);
-
-                    File.Copy(downloadedCover, finalCoverPath, overwrite: true);
-                    Log.Info($"Saved stand-alone cover art to: 'Covers/{coverFileName}'");
+                    _track = await TrackTagger.UpdateMarkdownCoverPropertyAsync(_track, downloadedCover);
                 }
             }
             else
@@ -112,7 +107,7 @@ internal class TrackProcessor
             string expectedCoverLink = $"[[Covers/{coverFileName}]]";
             if (!string.Equals(_track.Cover, expectedCoverLink, StringComparison.OrdinalIgnoreCase))
             {
-                await UpdateMarkdownCoverPropertyAsync(expectedCoverLink);
+                _track = await TrackTagger.UpdateMarkdownCoverPropertyAsync(_track, finalCoverPath);
             }
 
             if (!await ProcessAudioAsync(_track, downloadedAudio, finalTempOut))
@@ -120,7 +115,7 @@ internal class TrackProcessor
                 return TrackProcessStatus.Failed;
             }
 
-            if (!ApplyMetadata(finalTempOut))
+            if (!TrackTagger.Apply(_track, finalTempOut))
             {
                 return TrackProcessStatus.Failed;
             }
@@ -225,79 +220,9 @@ internal class TrackProcessor
         return true;
     }
 
-    private bool ApplyMetadata(string filePath)
-    {
-        try
-        {
-            using TagLib.File file = TagLib.File.Create(filePath);
-
-            file.Tag.Title = _track.Title ?? string.Empty;
-            file.Tag.Performers = string.IsNullOrWhiteSpace(_track.Artist) ? [] : [_track.Artist];
-            file.Tag.AlbumArtists = string.IsNullOrWhiteSpace(_track.AlbumArtist) ? [] : [_track.AlbumArtist];
-            file.Tag.Composers = string.IsNullOrWhiteSpace(_track.Composer) ? [] : [_track.Composer];
-            file.Tag.Album = _track.Album ?? string.Empty;
-            file.Tag.Track = (uint)(_track.TrackNumber ?? 0);
-            file.Tag.Disc = (uint)(_track.DiscNumber ?? 0);
-
-            if (!string.IsNullOrWhiteSpace(_track.Date) && _track.Date.Length >= 4 && uint.TryParse(_track.Date[..4], out uint year))
-            {
-                file.Tag.Year = year;
-            }
-
-            file.Tag.Genres = _track.Tags?.ToArray() ?? [];
-            file.Tag.Comment = _track.Source ?? string.Empty;
-
-            if (!string.IsNullOrWhiteSpace(_track.Cover))
-            {
-                string cleanLink = _track.Cover.Replace("[[", "").Replace("]]", "").Replace("/", "\\");
-                string coverFileName = Path.GetFileName(cleanLink);
-                string coverPath = Path.Combine(SettingsManager.Current.CoversDir, coverFileName);
-
-                if (File.Exists(coverPath))
-                {
-                    file.Tag.Pictures = [new TagLib.Picture(coverPath)];
-                }
-            }
-
-            file.Save();
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"Failed to apply metadata tags: {ex.Message}");
-            return false;
-        }
-    }
-
     private async Task<bool> UpdateMetadataInPlaceAsync(string outputFile)
     {
-        return await Task.Run(() => ApplyMetadata(outputFile));
-    }
-
-    private async Task UpdateMarkdownCoverPropertyAsync(string expectedCoverLink)
-    {
-        if (string.IsNullOrEmpty(_track.DatabaseFilePath) || !File.Exists(_track.DatabaseFilePath))
-        {
-            return;
-        }
-
-        try
-        {
-            string content = await File.ReadAllTextAsync(_track.DatabaseFilePath);
-            (Track parsedTrack, string body) = MarkdownTrackFormatter.Parse(content);
-
-            Track updatedTrack = parsedTrack with { Cover = expectedCoverLink };
-            string formatted = MarkdownTrackFormatter.Format(updatedTrack, body);
-
-            await File.WriteAllTextAsync(_track.DatabaseFilePath, formatted);
-
-            _track = updatedTrack with { DatabaseFilePath = _track.DatabaseFilePath };
-            Log.Success($"Linked database to: '{expectedCoverLink}'");
-        }
-        catch (Exception ex)
-        {
-            Log.Warning($"Failed to update markdown cover property: {ex.Message}");
-        }
+        return await Task.Run(() => TrackTagger.Apply(_track, outputFile));
     }
 
     private void CleanupTempFiles()
@@ -307,7 +232,7 @@ internal class TrackProcessor
             return;
         }
 
-        IEnumerable<string> tempFiles = Directory.EnumerateFiles(_albumDir, "temp.*")
+        using IEnumerable<string> tempFiles = Directory.EnumerateFiles(_albumDir, "temp.*")
             .Concat(Directory.EnumerateFiles(_albumDir, "out.*"));
 
         foreach (string file in tempFiles)

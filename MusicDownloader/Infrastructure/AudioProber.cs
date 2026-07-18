@@ -9,7 +9,7 @@ internal static class AudioProber
     {
         try
         {
-            using var file = TagLib.File.Create(inputFile);
+            using TagLib.File file = TagLib.File.Create(inputFile);
             return file.Properties.AudioSampleRate;
         }
         catch
@@ -22,7 +22,7 @@ internal static class AudioProber
     {
         try
         {
-            using var file = TagLib.File.Create(filePath);
+            using TagLib.File file = TagLib.File.Create(filePath);
             TagLib.Tag tag = file.Tag;
             List<string> mismatches = [];
 
@@ -61,9 +61,34 @@ internal static class AudioProber
 
             bool hasCover = tag.Pictures.Length > 0;
             bool expectsCover = !string.IsNullOrWhiteSpace(track.Cover);
-            if (expectsCover && !hasCover)
+
+            if (expectsCover)
             {
-                mismatches.Add("[gray]    - Cover Art: '[/][red]Missing[/][gray]' -> '[/][green]Expected[/][gray]'[/]");
+                string cleanLink = track.Cover!.Replace("[[", "").Replace("]]", "").Replace("/", "\\");
+                string coverFileName = Path.GetFileName(cleanLink);
+                string coverPath = Path.Combine(SettingsManager.Current.CoversDir, coverFileName);
+
+                if (File.Exists(coverPath))
+                {
+                    if (!hasCover)
+                    {
+                        mismatches.Add("[gray]    - Cover Art: '[/][red]Missing[/][gray]' -> '[/][green]Expected[/][gray]'[/]");
+                    }
+                    else
+                    {
+                        long diskFileSize = new FileInfo(coverPath).Length;
+                        long embeddedSize = tag.Pictures[0].Data.Count;
+
+                        if (diskFileSize != embeddedSize)
+                        {
+                            mismatches.Add("[gray]    - Cover Art: '[/][red]Outdated Image[/][gray]' -> '[/][green]New Image Detected[/][gray]'[/]");
+                        }
+                    }
+                }
+            }
+            else if (hasCover)
+            {
+                mismatches.Add("[gray]    - Cover Art: '[/][red]Present[/][gray]' -> '[/][green]None Expected[/][gray]'[/]");
             }
 
             if (mismatches.Count > 0)
