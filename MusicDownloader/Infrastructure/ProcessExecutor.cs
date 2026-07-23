@@ -156,7 +156,11 @@ internal class ProcessExecutor
             || line.StartsWith("[info]", StringComparison.OrdinalIgnoreCase)
             || line.StartsWith("[download] Destination:", StringComparison.OrdinalIgnoreCase)
             || line.StartsWith("[ExtractAudio]", StringComparison.OrdinalIgnoreCase)
-            || line.Contains("The url doesn't specify the protocol", StringComparison.OrdinalIgnoreCase);
+            || line.Contains("The url doesn't specify the protocol", StringComparison.OrdinalIgnoreCase)
+            || line.StartsWith("Extracting cookies from", StringComparison.OrdinalIgnoreCase)
+            || (line.StartsWith("Extracted", StringComparison.OrdinalIgnoreCase) && line.Contains("cookies from", StringComparison.OrdinalIgnoreCase))
+            || line.StartsWith("[ThumbnailsConvertor]", StringComparison.OrdinalIgnoreCase)
+            || line.StartsWith("Deleting original file", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void HandleStdErr(string data)

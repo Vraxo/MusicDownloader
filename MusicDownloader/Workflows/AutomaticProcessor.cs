@@ -1,6 +1,7 @@
 ﻿using MusicDownloader.Common;
 using MusicDownloader.Infrastructure;
 using Spectre.Console;
+using System.Collections.Concurrent;
 
 namespace MusicDownloader.Workflows;
 
@@ -13,6 +14,9 @@ internal static class AutomaticProcessor
         {
             return;
         }
+
+        Dictionary<string, string> sourceMap = await ScanExistingFilesBySourceAsync();
+        ReconcileRenamedTracks(allTracks, sourceMap);
 
         (List<Track>? pendingTracks, int alreadyDownloadedCount, int metadataUpdatesCount, int newDownloadsCount) = await FilterPendingTracksAsync(allTracks);
 
@@ -28,6 +32,105 @@ internal static class AutomaticProcessor
 
         PrintPostFlightStats(downloaded, metadataUpdated, failed, updatedCount);
         Log.Success("All downloads and processing finished.");
+    }
+
+    private static async Task<Dictionary<string, string>> ScanExistingFilesBySourceAsync()
+    {
+        string baseDir = SettingsManager.Current.BaseDataDir;
+        if (!Directory.Exists(baseDir))
+        {
+            return [];
+        }
+
+        List<string> allFiles = [];
+        try
+        {
+            allFiles = [.. Directory.EnumerateFiles(baseDir, "*.*", SearchOption.AllDirectories)
+                .Where(f => TrackProcessor.SupportedExtensions.Contains(Path.GetExtension(f).ToLowerInvariant()))];
+        }
+        catch (Exception ex)
+        {
+            Log.Warning($"Failed to scan local music directory: {ex.Message}");
+            return [];
+        }
+
+        if (allFiles.Count == 0)
+        {
+            return [];
+        }
+
+        ConcurrentDictionary<string, string> sourceMap = new(StringComparer.OrdinalIgnoreCase);
+
+        await AnsiConsole.Progress()
+            .Columns([
+                new TaskDescriptionColumn(),
+                new ProgressBarColumn(),
+                new PercentageColumn(),
+                new RemainingTimeColumn(),
+                new SpinnerColumn()
+            ])
+            .StartAsync(async ctx =>
+            {
+                ProgressTask progressTask = ctx.AddTask("[cyan]Scanning library source URLs[/]", autoStart: true, maxValue: allFiles.Count);
+
+                await Parallel.ForEachAsync(allFiles, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, (file, cancellationToken) =>
+                {
+                    string? source = AudioProber.GetSource(file);
+                    if (!string.IsNullOrWhiteSpace(source))
+                    {
+                        sourceMap.TryAdd(source, file);
+                    }
+                    progressTask.Increment(1);
+                    return ValueTask.CompletedTask;
+                });
+            });
+
+        return new Dictionary<string, string>(sourceMap, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static void ReconcileRenamedTracks(List<Track> tracks, Dictionary<string, string> sourceMap)
+    {
+        int reconciledCount = 0;
+
+        foreach (Track track in tracks)
+        {
+            if (string.IsNullOrWhiteSpace(track.Source))
+            {
+                continue;
+            }
+
+            string expectedPath = TrackProcessor.GetOutputFile(track);
+            if (File.Exists(expectedPath))
+            {
+                continue;
+            }
+
+            if (sourceMap.TryGetValue(track.Source, out string? actualPath) && File.Exists(actualPath))
+            {
+                string? targetDir = Path.GetDirectoryName(expectedPath);
+                if (!string.IsNullOrEmpty(targetDir))
+                {
+                    Directory.CreateDirectory(targetDir);
+                }
+
+                try
+                {
+                    File.Move(actualPath, expectedPath, overwrite: true);
+                    reconciledCount++;
+                    sourceMap.Remove(track.Source);
+                    sourceMap[track.Source] = expectedPath;
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"Failed to move reconciled track from '{actualPath}' to '{expectedPath}': {ex.Message}");
+                }
+            }
+        }
+
+        if (reconciledCount > 0)
+        {
+            Log.Success($"Reconciled {reconciledCount} moved or renamed tracks on disk.");
+        }
     }
 
     private static async Task<(List<Track> Pending, int UpToDate, int MetadataUpdates, int NewDownloads)> FilterPendingTracksAsync(List<Track> tracks)

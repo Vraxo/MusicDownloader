@@ -97,8 +97,24 @@ internal static class PlaylistWriter
 
     private static string GetRelativePath(Track track)
     {
+        string albumDir = Path.Combine(SettingsManager.Current.BaseDataDir, PathUtils.SafeFileName(track.Album));
+        string baseFileName = PathUtils.SafeFileName(track.Title);
+        string extension = ".opus";
+
+        if (Directory.Exists(albumDir))
+        {
+            foreach (string ext in TrackProcessor.SupportedExtensions)
+            {
+                if (File.Exists(Path.Combine(albumDir, baseFileName + ext)))
+                {
+                    extension = ext;
+                    break;
+                }
+            }
+        }
+
         return Path.Combine(
             PathUtils.SafeFileName(track.Album),
-            $"{PathUtils.SafeFileName(track.Title)}.opus");
+            baseFileName + extension);
     }
 }

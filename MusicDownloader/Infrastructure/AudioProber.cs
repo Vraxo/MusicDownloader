@@ -18,6 +18,19 @@ internal static class AudioProber
         }
     }
 
+    public static string? GetSource(string filePath)
+    {
+        try
+        {
+            using TagLib.File file = TagLib.File.Create(filePath);
+            return file.Tag.Comment;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public static bool IsMetadataUpToDate(string filePath, Track track, out string? mismatchReason)
     {
         try
@@ -72,23 +85,35 @@ internal static class AudioProber
                 {
                     if (!hasCover)
                     {
-                        mismatches.Add("[gray]    - Cover Art: '[/][red]Missing[/][gray]' -> '[/][green]Expected[/][gray]'[/]");
+                        mismatches.Add("[gray]    - Cover Art: '[/][purple]Missing[/][gray]' -> '[/][green]Expected[/][gray]'[/]");
                     }
                     else
                     {
+                        string embeddedFileName = tag.Pictures[0].Filename ?? string.Empty;
                         long diskFileSize = new FileInfo(coverPath).Length;
                         long embeddedSize = tag.Pictures[0].Data.Count;
 
-                        if (diskFileSize != embeddedSize)
+                        bool nameMismatch = !string.Equals(embeddedFileName, coverFileName, StringComparison.OrdinalIgnoreCase);
+                        bool sizeMismatch = diskFileSize != embeddedSize;
+
+                        if (nameMismatch || sizeMismatch)
                         {
-                            mismatches.Add("[gray]    - Cover Art: '[/][red]Outdated Image[/][gray]' -> '[/][green]New Image Detected[/][gray]'[/]");
+                            if (nameMismatch)
+                            {
+                                string actualDisplay = string.IsNullOrEmpty(embeddedFileName) ? "No Filename Tag" : embeddedFileName;
+                                mismatches.Add($"[gray]    - Cover Art: '[/][purple]{actualDisplay.EscapeMarkup()}[/][gray]' -> '[/][green]{coverFileName.EscapeMarkup()}[/][gray]'[/]");
+                            }
+                            else
+                            {
+                                mismatches.Add("[gray]    - Cover Art: '[/][purple]Outdated Image[/][gray]' -> '[/][green]New Image Detected[/][gray]'[/]");
+                            }
                         }
                     }
                 }
             }
             else if (hasCover)
             {
-                mismatches.Add("[gray]    - Cover Art: '[/][red]Present[/][gray]' -> '[/][green]None Expected[/][gray]'[/]");
+                mismatches.Add("[gray]    - Cover Art: '[/][purple]Present[/][gray]' -> '[/][green]None Expected[/][gray]'[/]");
             }
 
             if (mismatches.Count > 0)
@@ -117,6 +142,6 @@ internal static class AudioProber
             return;
         }
 
-        mismatches.Add($"[gray]    - {displayName}: '[/][red]{cleanActual.EscapeMarkup()}[/][gray]' -> '[/][green]{cleanExpected.EscapeMarkup()}[/][gray]'[/]");
+        mismatches.Add($"[gray]    - {displayName}: '[/][purple]{cleanActual.EscapeMarkup()}[/][gray]' -> '[/][green]{cleanExpected.EscapeMarkup()}[/][gray]'[/]");
     }
 }

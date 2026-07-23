@@ -8,6 +8,8 @@ namespace MusicDownloader.Workflows;
 
 internal class TrackProcessor
 {
+    public static readonly string[] SupportedExtensions = [".opus", ".m4a", ".mp3", ".flac", ".ogg", ".wav", ".aac"];
+
     private Track _track;
     private readonly string _albumDir;
     private readonly int _index;
@@ -27,7 +29,21 @@ internal class TrackProcessor
             SettingsManager.Current.BaseDataDir,
             PathUtils.SafeFileName(track.Album));
 
-        return Path.Combine(albumDir, PathUtils.SafeFileName(track.Title) + ".opus");
+        string baseFileName = PathUtils.SafeFileName(track.Title);
+
+        if (Directory.Exists(albumDir))
+        {
+            foreach (string ext in SupportedExtensions)
+            {
+                string candidate = Path.Combine(albumDir, baseFileName + ext);
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+        }
+
+        return Path.Combine(albumDir, baseFileName + ".opus");
     }
 
     public async Task<TrackProcessStatus> ProcessAsync()
@@ -37,10 +53,40 @@ internal class TrackProcessor
 
         if (File.Exists(outputFile))
         {
-            return await HandleExistingFileAsync(outputFile);
+            if (IsFileCorrupted(outputFile))
+            {
+                Log.Warning($"Existing file '{Path.GetFileName(outputFile)}' is corrupted. Deleting and queuing for clean redownload...");
+                try
+                {
+                    File.Delete(outputFile);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"Failed to delete corrupted file '{Path.GetFileName(outputFile)}': {ex.Message}");
+                    return TrackProcessStatus.Failed;
+                }
+            }
+            else
+            {
+                return await HandleExistingFileAsync(outputFile);
+            }
         }
 
         return await DownloadAndProcessNewTrackAsync(outputFile);
+    }
+
+    private static bool IsFileCorrupted(string filePath)
+    {
+        try
+        {
+            using TagLib.File file = TagLib.File.Create(filePath);
+            _ = file.Tag;
+            return false;
+        }
+        catch
+        {
+            return true;
+        }
     }
 
     private async Task<TrackProcessStatus> HandleExistingFileAsync(string outputFile)
@@ -82,7 +128,14 @@ internal class TrackProcessor
 
             if (!await RunFullDownloadAsync(tempFileBase, downloadThumbnail: !coverExistsLocally))
             {
-                return TrackProcessStatus.Failed;
+                Log.Warning("Download failed. Cleaning partial download files and retrying once...");
+                CleanupTempFiles();
+
+                if (!await RunFullDownloadAsync(tempFileBase, downloadThumbnail: !coverExistsLocally))
+                {
+                    AnsiConsole.MarkupLine("[red]Download failed permanently.[/]");
+                    return TrackProcessStatus.Failed;
+                }
             }
 
             string? downloadedAudio = FindDownloadedFile(tempFileBase);
@@ -103,12 +156,12 @@ internal class TrackProcessor
             else
             {
                 Log.Info($"Re-using existing cover art: 'Covers/{coverFileName}'");
-            }
 
-            string expectedCoverLink = $"[[Covers/{coverFileName}]]";
-            if (!string.Equals(_track.Cover, expectedCoverLink, StringComparison.OrdinalIgnoreCase))
-            {
-                _track = await TrackTagger.UpdateMarkdownCoverPropertyAsync(_track, finalCoverPath);
+                string expectedCoverLink = $"[[Covers/{coverFileName}]]";
+                if (!string.Equals(_track.Cover, expectedCoverLink, StringComparison.OrdinalIgnoreCase))
+                {
+                    _track = await TrackTagger.UpdateMarkdownCoverPropertyAsync(_track, finalCoverPath);
+                }
             }
 
             if (!await ProcessAudioAsync(_track, downloadedAudio, finalTempOut))
@@ -184,7 +237,6 @@ internal class TrackProcessor
 
             if (exitCode != 0)
             {
-                AnsiConsole.MarkupLine("[red]Download failed.[/]");
                 return false;
             }
 

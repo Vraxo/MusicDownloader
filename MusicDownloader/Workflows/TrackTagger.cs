@@ -34,7 +34,18 @@ internal static class TrackTagger
 
                 if (File.Exists(coverPath))
                 {
-                    file.Tag.Pictures = [new TagLib.Picture(coverPath)];
+                    byte[] bytes = File.ReadAllBytes(coverPath);
+
+                    TagLib.Picture picture = new()
+                    {
+                        Type = TagLib.PictureType.FrontCover,
+                        MimeType = coverPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? "image/png" : "image/jpeg",
+                        Description = "Cover",
+                        Filename = coverFileName,
+                        Data = [.. bytes]
+                    };
+
+                    file.Tag.Pictures = [picture];
                 }
                 else
                 {
@@ -51,7 +62,7 @@ internal static class TrackTagger
         }
         catch (Exception ex)
         {
-            Log.Error($"Failed to apply metadata tags: {ex.Message}");
+            Log.Error($"Failed to apply metadata tags to '{Path.GetFileName(filePath)}':\n{ex}");
             return false;
         }
     }
@@ -64,13 +75,22 @@ internal static class TrackTagger
         }
 
         string ext = Path.GetExtension(downloadedCoverPath).ToLowerInvariant();
-        string safeTitle = PathUtils.SafeFileName(track.Title);
         string coversDir = SettingsManager.Current.CoversDir;
+        string destinationFileName;
+
+        if (!string.IsNullOrWhiteSpace(track.Cover))
+        {
+            destinationFileName = PathUtils.GetCoverFileName(track);
+        }
+        else
+        {
+            string safeTitle = PathUtils.SafeFileName(track.Title);
+            destinationFileName = $"{safeTitle}{ext}";
+        }
 
         try
         {
             Directory.CreateDirectory(coversDir);
-            string destinationFileName = $"{safeTitle}{ext}";
             string destinationPath = Path.Combine(coversDir, destinationFileName);
 
             if (Path.GetFullPath(downloadedCoverPath) != Path.GetFullPath(destinationPath))
