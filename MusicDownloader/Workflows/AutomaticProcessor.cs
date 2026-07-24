@@ -60,19 +60,12 @@ internal static class AutomaticProcessor
         }
 
         ConcurrentDictionary<string, string> sourceMap = new(StringComparer.OrdinalIgnoreCase);
+        int processed = 0;
+        int total = allFiles.Count;
 
-        await AnsiConsole.Progress()
-            .Columns([
-                new TaskDescriptionColumn(),
-                new ProgressBarColumn(),
-                new PercentageColumn(),
-                new RemainingTimeColumn(),
-                new SpinnerColumn()
-            ])
-            .StartAsync(async ctx =>
+        await AnsiConsole.Status()
+            .StartAsync("Scanning library source URLs...", async ctx =>
             {
-                ProgressTask progressTask = ctx.AddTask("[cyan]Scanning library source URLs[/]", autoStart: true, maxValue: allFiles.Count);
-
                 await Parallel.ForEachAsync(allFiles, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, (file, cancellationToken) =>
                 {
                     string? source = AudioProber.GetSource(file);
@@ -80,7 +73,9 @@ internal static class AutomaticProcessor
                     {
                         sourceMap.TryAdd(source, file);
                     }
-                    progressTask.Increment(1);
+
+                    int current = Interlocked.Increment(ref processed);
+                    ctx.Status = $"Scanning library source URLs ({current}/{total})...";
                     return ValueTask.CompletedTask;
                 });
             });
@@ -147,19 +142,11 @@ internal static class AutomaticProcessor
         }
 
         (bool IsUpToDate, bool IsNewDownload)[] results = new (bool IsUpToDate, bool IsNewDownload)[total];
+        int processed = 0;
 
-        await AnsiConsole.Progress()
-            .Columns([
-                new TaskDescriptionColumn(),
-                new ProgressBarColumn(),
-                new PercentageColumn(),
-                new RemainingTimeColumn(),
-                new SpinnerColumn()
-            ])
-            .StartAsync(async ctx =>
+        await AnsiConsole.Status()
+            .StartAsync("Verifying metadata...", async ctx =>
             {
-                ProgressTask progressTask = ctx.AddTask("[cyan]Verifying metadata[/]", autoStart: true, maxValue: total);
-
                 await Parallel.ForEachAsync(Enumerable.Range(0, total), new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, async (i, cancellationToken) =>
                 {
                     Track track = tracks[i];
@@ -174,7 +161,9 @@ internal static class AutomaticProcessor
                     }
 
                     results[i] = (isUpToDate, isNewDownload);
-                    progressTask.Increment(1);
+
+                    int current = Interlocked.Increment(ref processed);
+                    ctx.Status = $"Verifying metadata ({current}/{total})...";
                 });
             });
 

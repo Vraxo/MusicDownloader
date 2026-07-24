@@ -104,11 +104,23 @@ internal class TrackProcessor
             {
                 AnsiConsole.MarkupLine(mismatch);
             }
+            return TrackProcessStatus.MetadataUpdated;
         }
 
-        return updated
-            ? TrackProcessStatus.MetadataUpdated
-            : TrackProcessStatus.Failed;
+        // Self-Healing Recovery:
+        // If an in-place update fails, the file has pre-existing container/page corruption (likely from old image tag attempts).
+        // Automatically delete the corrupted file and perform a clean redownload.
+        Log.Warning($"Failed to update metadata in-place for '{Path.GetFileName(outputFile)}' due to container corruption. Deleting and queuing for a clean download...");
+        try
+        {
+            File.Delete(outputFile);
+            return await DownloadAndProcessNewTrackAsync(outputFile);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Self-healing failed. Could not recover '{Path.GetFileName(outputFile)}': {ex.Message}");
+            return TrackProcessStatus.Failed;
+        }
     }
 
     private async Task<TrackProcessStatus> DownloadAndProcessNewTrackAsync(string outputFile)

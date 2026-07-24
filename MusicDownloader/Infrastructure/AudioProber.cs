@@ -89,24 +89,12 @@ internal static class AudioProber
                     }
                     else
                     {
-                        string embeddedFileName = tag.Pictures[0].Filename ?? string.Empty;
                         long diskFileSize = new FileInfo(coverPath).Length;
                         long embeddedSize = tag.Pictures[0].Data.Count;
 
-                        bool nameMismatch = !string.Equals(embeddedFileName, coverFileName, StringComparison.OrdinalIgnoreCase);
-                        bool sizeMismatch = diskFileSize != embeddedSize;
-
-                        if (nameMismatch || sizeMismatch)
+                        if (diskFileSize != embeddedSize)
                         {
-                            if (nameMismatch)
-                            {
-                                string actualDisplay = string.IsNullOrEmpty(embeddedFileName) ? "No Filename Tag" : embeddedFileName;
-                                mismatches.Add($"[gray]    - Cover Art: '[/][purple]{actualDisplay.EscapeMarkup()}[/][gray]' -> '[/][green]{coverFileName.EscapeMarkup()}[/][gray]'[/]");
-                            }
-                            else
-                            {
-                                mismatches.Add("[gray]    - Cover Art: '[/][purple]Outdated Image[/][gray]' -> '[/][green]New Image Detected[/][gray]'[/]");
-                            }
+                            mismatches.Add("[gray]    - Cover Art: '[/][purple]Outdated Image[/][gray]' -> '[/][green]New Image Detected[/][gray]'[/]");
                         }
                     }
                 }
