@@ -106,6 +106,38 @@ internal static class AudioProber
                         }
                     }
                 }
+                else
+                {
+                    if (hasCover)
+                    {
+                        try
+                        {
+                            byte[] imgBytes = tag.Pictures[0].Data.Data;
+                            if (imgBytes is not null && imgBytes.Length > 0)
+                            {
+                                string? parentDir = Path.GetDirectoryName(coverPath);
+                                if (!string.IsNullOrEmpty(parentDir))
+                                {
+                                    Directory.CreateDirectory(parentDir);
+                                }
+                                File.WriteAllBytes(coverPath, imgBytes);
+                                Log.Success($"[Self-Healing] Re-extracted cover art '{coverFileName}' from audio file.");
+                            }
+                            else
+                            {
+                                mismatches.Add("[gray]    - Cover Art File on Disk: '[/][purple]Missing[/][gray]' -> '[/][green]Extraction Failed (Empty Data)[/][gray]'[/]");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            mismatches.Add($"[gray]    - Cover Art File on Disk: '[/][purple]Missing[/][gray]' -> '[/][green]Extraction Failed: {ex.Message.EscapeMarkup()}[/][gray]'[/]");
+                        }
+                    }
+                    else
+                    {
+                        mismatches.Add("[gray]    - Cover Art: '[/][purple]Missing (Both Disk & Audio)[/][gray]' -> '[/][green]Expected[/][gray]'[/]");
+                    }
+                }
             }
             else if (hasCover)
             {
