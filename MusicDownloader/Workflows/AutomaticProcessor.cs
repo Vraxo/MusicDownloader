@@ -143,6 +143,7 @@ internal static class AutomaticProcessor
 
         (bool IsUpToDate, bool IsNewDownload)[] results = new (bool IsUpToDate, bool IsNewDownload)[total];
         int processed = 0;
+        ConcurrentQueue<string> selfHealMessages = new();
 
         await AnsiConsole.Status()
             .StartAsync("Verifying metadata...", async ctx =>
@@ -157,7 +158,7 @@ internal static class AutomaticProcessor
                     if (File.Exists(outputFile))
                     {
                         isNewDownload = false;
-                        isUpToDate = AudioProber.IsMetadataUpToDate(outputFile, track, out _);
+                        isUpToDate = AudioProber.IsMetadataUpToDate(outputFile, track, out _, selfHealMessages.Enqueue);
                     }
 
                     results[i] = (isUpToDate, isNewDownload);
@@ -166,6 +167,11 @@ internal static class AutomaticProcessor
                     ctx.Status = $"Verifying metadata ({current}/{total})...";
                 });
             });
+
+        while (selfHealMessages.TryDequeue(out string? message))
+        {
+            Log.Success(message);
+        }
 
         for (int i = 0; i < total; i++)
         {

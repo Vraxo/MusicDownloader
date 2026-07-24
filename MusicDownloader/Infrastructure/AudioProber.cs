@@ -31,7 +31,7 @@ internal static class AudioProber
         }
     }
 
-    public static bool IsMetadataUpToDate(string filePath, Track track, out string? mismatchReason)
+    public static bool IsMetadataUpToDate(string filePath, Track track, out string? mismatchReason, Action<string>? onSelfHeal = null)
     {
         try
         {
@@ -121,7 +121,7 @@ internal static class AudioProber
                                     Directory.CreateDirectory(parentDir);
                                 }
                                 File.WriteAllBytes(coverPath, imgBytes);
-                                Log.Success($"[Self-Healing] Re-extracted cover art '{coverFileName}' from audio file.");
+                                onSelfHeal?.Invoke($"[Self-Healing] Re-extracted cover art '{coverFileName}' from audio file.");
                             }
                             else
                             {

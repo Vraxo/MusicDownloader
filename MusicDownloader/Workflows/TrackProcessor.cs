@@ -91,7 +91,7 @@ internal class TrackProcessor
 
     private async Task<TrackProcessStatus> HandleExistingFileAsync(string outputFile)
     {
-        if (AudioProber.IsMetadataUpToDate(outputFile, _track, out string? mismatch))
+        if (AudioProber.IsMetadataUpToDate(outputFile, _track, out string? mismatch, Log.Success))
         {
             return TrackProcessStatus.Skipped;
         }
