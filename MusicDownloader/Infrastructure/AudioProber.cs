@@ -96,6 +96,14 @@ internal static class AudioProber
                         {
                             mismatches.Add("[gray]    - Cover Art: '[/][purple]Outdated Image[/][gray]' -> '[/][green]New Image Detected[/][gray]'[/]");
                         }
+                        else
+                        {
+                            string currentDescription = tag.Pictures[0].Description ?? string.Empty;
+                            if (!string.Equals(currentDescription, coverFileName, StringComparison.Ordinal))
+                            {
+                                mismatches.Add($"[gray]    - Cover Art Name: '[/][purple]{currentDescription.EscapeMarkup()}[/][gray]' -> '[/][green]{coverFileName.EscapeMarkup()}[/][gray]'[/]");
+                            }
+                        }
                     }
                 }
             }
