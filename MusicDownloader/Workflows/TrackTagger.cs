@@ -40,7 +40,7 @@ internal static class TrackTagger
                     {
                         Type = TagLib.PictureType.FrontCover,
                         MimeType = coverPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? "image/png" : "image/jpeg",
-                        Description = "Cover",
+                        Description = coverFileName,
                         Filename = coverFileName,
                         Data = [.. bytes]
                     };
