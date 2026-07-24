@@ -1,7 +1,8 @@
 ﻿using FluentAssertions;
-using MusicDownloader.Common;
+using MusicDownloader.Core;
+using MusicDownloader.Infrastructure;
 
-namespace MusicDownloader.Tests.Common;
+namespace MusicDownloader.Tests.Infrastructure;
 
 public sealed class PathUtilsTests
 {

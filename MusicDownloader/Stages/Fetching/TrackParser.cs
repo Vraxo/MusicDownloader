@@ -1,4 +1,4 @@
-﻿namespace MusicDownloader.Common;
+﻿namespace MusicDownloader.Stages.Fetching;
 
 internal static class TrackParser
 {

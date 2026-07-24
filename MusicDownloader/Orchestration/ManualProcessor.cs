@@ -1,9 +1,9 @@
-﻿using MusicDownloader.Commands;
-using MusicDownloader.Common;
-using MusicDownloader.Infrastructure;
+﻿using MusicDownloader.Infrastructure;
+using MusicDownloader.Stages.Fetching;
+using MusicDownloader.Stages.Processing;
 using System.Globalization;
 
-namespace MusicDownloader.Workflows;
+namespace MusicDownloader.Orchestration;
 
 internal static class ManualProcessor
 {

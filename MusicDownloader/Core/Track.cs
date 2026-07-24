@@ -1,7 +1,7 @@
 ﻿using System.ComponentModel;
 using YamlDotNet.Serialization;
 
-namespace MusicDownloader.Common;
+namespace MusicDownloader.Core;
 
 internal sealed record Track
 {

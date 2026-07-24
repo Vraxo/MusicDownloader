@@ -1,4 +1,4 @@
-﻿namespace MusicDownloader.Workflows;
+﻿namespace MusicDownloader.Orchestration;
 
 internal enum TrackProcessStatus
 {

@@ -1,4 +1,4 @@
-using MusicDownloader.Common;
+using MusicDownloader.Core;
 using System.Text.Json;
 
 namespace MusicDownloader.Infrastructure;

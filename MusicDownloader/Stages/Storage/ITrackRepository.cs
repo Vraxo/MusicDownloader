@@ -1,4 +1,7 @@
-﻿namespace MusicDownloader.Common;
+﻿
+using MusicDownloader.Core;
+
+namespace MusicDownloader.Stages.Storage;
 
 internal interface ITrackRepository
 {

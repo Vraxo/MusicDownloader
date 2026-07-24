@@ -1,7 +1,8 @@
-﻿using MusicDownloader.Common;
+﻿using MusicDownloader.Core;
+using MusicDownloader.Infrastructure;
 using Spectre.Console;
 
-namespace MusicDownloader.Infrastructure;
+namespace MusicDownloader.Stages.Processing;
 
 internal static class AudioProber
 {

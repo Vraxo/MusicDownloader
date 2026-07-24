@@ -1,7 +1,7 @@
 ﻿using FluentAssertions;
-using MusicDownloader.Commands;
+using MusicDownloader.Stages.Processing;
 
-namespace MusicDownloader.Tests.Commands;
+namespace MusicDownloader.Tests.Stages.Processing;
 
 public class FlacFfmpegCommandBuilderTests
 {

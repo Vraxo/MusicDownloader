@@ -1,4 +1,6 @@
-﻿namespace MusicDownloader.Common;
+﻿using MusicDownloader.Infrastructure;
+
+namespace MusicDownloader.Stages.Fetching;
 
 internal static class UserInput
 {

@@ -1,9 +1,10 @@
-﻿using MusicDownloader.Infrastructure;
+﻿using MusicDownloader.Core;
+using MusicDownloader.Infrastructure;
 using System.Text;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
-namespace MusicDownloader.Common;
+namespace MusicDownloader.Stages.Storage;
 
 internal sealed class MarkdownTrackRepository : ITrackRepository
 {

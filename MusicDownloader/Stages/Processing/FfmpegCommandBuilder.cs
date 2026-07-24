@@ -1,20 +1,16 @@
-﻿using MusicDownloader.Common;
+﻿using MusicDownloader.Core;
 using MusicDownloader.Infrastructure;
 using System.Globalization;
 
-namespace MusicDownloader.Commands;
+namespace MusicDownloader.Stages.Processing;
 
 internal sealed class FfmpegCommandBuilder(Track track, string inputFile, string outputFile)
 {
-    private readonly Track _track = track;
-    private readonly string _inputFile = inputFile;
-    private readonly string _outputFile = outputFile;
-
     public ProcessArguments Build()
     {
-        int loopCount = _track.Loop;
-        string start = _track.Range.Count == 2 ? _track.Range[0] : string.Empty;
-        string end = _track.Range.Count == 2 ? _track.Range[1] : string.Empty;
+        int loopCount = track.Loop;
+        string start = track.Range.Count == 2 ? track.Range[0] : string.Empty;
+        string end = track.Range.Count == 2 ? track.Range[1] : string.Empty;
         bool hasTrim = !string.IsNullOrEmpty(start) || !string.IsNullOrEmpty(end);
         string tempoFilter = BuildTempoFilterContent();
         bool hasFilter = !string.IsNullOrEmpty(tempoFilter) || loopCount > 1;
@@ -33,7 +29,7 @@ internal sealed class FfmpegCommandBuilder(Track track, string inputFile, string
             }
         }
 
-        args.AddRange(["-i", _inputFile]);
+        args.AddRange(["-i", inputFile]);
         args.Add("-vn");
 
         if (loopCount > 1)
@@ -80,19 +76,19 @@ internal sealed class FfmpegCommandBuilder(Track track, string inputFile, string
             args.AddRange(["-c:a", "copy"]);
         }
 
-        args.Add(_outputFile);
+        args.Add(outputFile);
 
         return args;
     }
 
     private string BuildTempoFilterContent()
     {
-        if (_track.Tempo is null or <= 0)
+        if (track.Tempo is null or <= 0)
         {
             return string.Empty;
         }
 
-        double tempoMultiplier = _track.Tempo.Value / 100.0;
+        double tempoMultiplier = track.Tempo.Value / 100.0;
 
         if (SettingsManager.Current.PreservePitchWhenChangingTempo)
         {

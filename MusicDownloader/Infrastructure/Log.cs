@@ -1,6 +1,6 @@
 ﻿using Spectre.Console;
 
-namespace MusicDownloader.Common;
+namespace MusicDownloader.Infrastructure;
 
 internal sealed class Log
 {

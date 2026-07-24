@@ -1,6 +1,6 @@
-using MusicDownloader.Common;
 using MusicDownloader.Infrastructure;
-using MusicDownloader.Workflows;
+using MusicDownloader.Orchestration;
+using MusicDownloader.Stages.Storage;
 using System.Text;
 
 Console.OutputEncoding = Encoding.UTF8;

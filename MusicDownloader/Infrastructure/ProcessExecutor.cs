@@ -1,5 +1,4 @@
-﻿using MusicDownloader.Common;
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 
@@ -46,55 +45,6 @@ internal class ProcessExecutor
             proc.WaitForExit();
 
             return proc.ExitCode;
-        }
-        catch (Win32Exception)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"Unexpected error running '{exe}': {ex.Message}");
-            throw;
-        }
-    }
-
-    public static ProcessResult RunAndCapture(string exe, ProcessArguments args)
-    {
-        try
-        {
-            using Process proc = CreateProcess(exe, args);
-
-            StringBuilder output = new();
-            StringBuilder error = new();
-
-            proc.OutputDataReceived += (_, e) =>
-            {
-                if (e.Data is null)
-                {
-                    return;
-                }
-
-                output.AppendLine(e.Data);
-            };
-            proc.ErrorDataReceived += (_, e) =>
-            {
-                if (e.Data is null)
-                {
-                    return;
-                }
-
-                error.AppendLine(e.Data);
-            };
-
-            proc.Start();
-            proc.BeginOutputReadLine();
-            proc.BeginErrorReadLine();
-            proc.WaitForExit();
-
-            return new(
-                proc.ExitCode,
-                output.ToString().Trim(),
-                error.ToString().Trim());
         }
         catch (Win32Exception)
         {

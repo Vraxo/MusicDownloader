@@ -1,8 +1,8 @@
-﻿using MusicDownloader.Common;
+﻿using MusicDownloader.Core;
 using MusicDownloader.Infrastructure;
 using System.Text;
 
-namespace MusicDownloader.Workflows;
+namespace MusicDownloader.Stages.Storage;
 
 internal static class PlaylistWriter
 {
@@ -103,7 +103,7 @@ internal static class PlaylistWriter
 
         if (Directory.Exists(albumDir))
         {
-            foreach (string ext in TrackProcessor.SupportedExtensions)
+            foreach (string ext in PathUtils.SupportedExtensions)
             {
                 if (File.Exists(Path.Combine(albumDir, baseFileName + ext)))
                 {

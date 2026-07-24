@@ -1,4 +1,4 @@
-﻿namespace MusicDownloader.Infrastructure;
+﻿namespace MusicDownloader.Core;
 
 internal sealed class Settings
 {

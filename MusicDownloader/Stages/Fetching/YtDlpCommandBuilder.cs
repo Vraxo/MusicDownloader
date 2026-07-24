@@ -1,23 +1,19 @@
-﻿using MusicDownloader.Common;
+﻿using MusicDownloader.Core;
 using MusicDownloader.Infrastructure;
 
-namespace MusicDownloader.Commands;
+namespace MusicDownloader.Stages.Fetching;
 
 internal sealed class YtDlpCommandBuilder(Track track, string tempFileBase, bool downloadThumbnail)
 {
-    private readonly Track _track = track;
-    private readonly string _tempFileBase = tempFileBase;
-    private readonly bool _downloadThumbnail = downloadThumbnail;
-
     public ProcessArguments Build()
     {
         List<string> args = [
             "-f", "bestaudio[acodec=opus]/bestaudio"
         ];
 
-        if (!string.IsNullOrWhiteSpace(_track.Source))
+        if (!string.IsNullOrWhiteSpace(track.Source))
         {
-            args.Add(_track.Source);
+            args.Add(track.Source);
         }
 
         args.AddRange([
@@ -25,7 +21,7 @@ internal sealed class YtDlpCommandBuilder(Track track, string tempFileBase, bool
             "--audio-format", "opus"
         ]);
 
-        if (_downloadThumbnail)
+        if (downloadThumbnail)
         {
             args.AddRange([
                 "--write-thumbnail",
@@ -61,7 +57,7 @@ internal sealed class YtDlpCommandBuilder(Track track, string tempFileBase, bool
             }
         }
 
-        args.AddRange(["-o", $"{_tempFileBase}.%(ext)s"]);
+        args.AddRange(["-o", $"{tempFileBase}.%(ext)s"]);
 
         return args;
     }

@@ -1,7 +1,7 @@
 ﻿using FluentAssertions;
-using MusicDownloader.Common;
+using MusicDownloader.Stages.Fetching;
 
-namespace MusicDownloader.Tests.Common;
+namespace MusicDownloader.Tests.Stages.Fetching;
 
 public class TrackParserTests
 {

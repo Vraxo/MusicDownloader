@@ -1,7 +1,7 @@
 ﻿using MusicDownloader.Infrastructure;
 using System.Globalization;
 
-namespace MusicDownloader.Commands;
+namespace MusicDownloader.Stages.Processing;
 
 internal sealed class FlacFfmpegCommandBuilder(
     string inputFile,

@@ -1,7 +1,7 @@
-﻿using MusicDownloader.Common;
+﻿using MusicDownloader.Core;
 using MusicDownloader.Infrastructure;
 
-namespace MusicDownloader.Workflows;
+namespace MusicDownloader.Stages.Processing;
 
 internal static class TrackTagger
 {

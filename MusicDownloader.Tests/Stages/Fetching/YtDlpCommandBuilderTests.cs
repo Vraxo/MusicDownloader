@@ -1,9 +1,9 @@
 ﻿using FluentAssertions;
-using MusicDownloader.Commands;
-using MusicDownloader.Common;
+using MusicDownloader.Core;
 using MusicDownloader.Infrastructure;
+using MusicDownloader.Stages.Fetching;
 
-namespace MusicDownloader.Tests.Commands;
+namespace MusicDownloader.Tests.Stages.Fetching;
 
 public sealed class YtDlpCommandBuilderTests : IDisposable
 {
