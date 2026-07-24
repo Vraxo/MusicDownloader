@@ -123,19 +123,15 @@ internal static class AudioProber
                                 File.WriteAllBytes(coverPath, imgBytes);
                                 onSelfHeal?.Invoke($"[Self-Healing] Re-extracted cover art '{coverFileName}' from audio file.");
                             }
-                            else
-                            {
-                                mismatches.Add("[gray]    - Cover Art File on Disk: '[/][purple]Missing[/][gray]' -> '[/][green]Extraction Failed (Empty Data)[/][gray]'[/]");
-                            }
                         }
                         catch (Exception ex)
                         {
                             mismatches.Add($"[gray]    - Cover Art File on Disk: '[/][purple]Missing[/][gray]' -> '[/][green]Extraction Failed: {ex.Message.EscapeMarkup()}[/][gray]'[/]");
                         }
                     }
-                    else
+                    else if (!string.IsNullOrWhiteSpace(track.Source))
                     {
-                        mismatches.Add("[gray]    - Cover Art: '[/][purple]Missing (Both Disk & Audio)[/][gray]' -> '[/][green]Expected[/][gray]'[/]");
+                        mismatches.Add("[gray]    - Cover Art: '[/][purple]Missing (Both Disk & Audio)[/][gray]' -> '[/][green]Scheduled for download from source[/][gray]'[/]");
                     }
                 }
             }

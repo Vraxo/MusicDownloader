@@ -96,13 +96,71 @@ internal class TrackProcessor
             return TrackProcessStatus.Skipped;
         }
 
+        string coverFileName = PathUtils.GetCoverFileName(_track);
+        string coverPath = Path.Combine(SettingsManager.Current.CoversDir, coverFileName);
+
+        if (!File.Exists(coverPath) && !string.IsNullOrWhiteSpace(_track.Source))
+        {
+            string tempFileBase = Path.Combine(_albumDir, "temp_thumb");
+            try
+            {
+                AnsiConsole.MarkupLine($"{GetLogPrefix().EscapeMarkup()}[cyan]Downloading missing cover art from source for: [white]{_track.Title.EscapeMarkup()}[/][/]");
+                bool downloaded = await DownloadThumbnailOnlyAsync(tempFileBase);
+                if (downloaded)
+                {
+                    string? downloadedCover = FindCoverFile(tempFileBase);
+                    if (downloadedCover is not null)
+                    {
+                        _track = await TrackTagger.UpdateMarkdownCoverPropertyAsync(_track, downloadedCover);
+                        Log.Success($"Successfully downloaded and placed cover art: '{coverFileName}'");
+                    }
+                }
+                else
+                {
+                    Log.Warning($"Failed to download thumbnail for '{_track.Title}' from source.");
+                }
+            }
+            finally
+            {
+                IEnumerable<string> tempFiles = Directory.EnumerateFiles(_albumDir, "temp_thumb.*");
+                foreach (string file in tempFiles)
+                {
+                    try { File.Delete(file); } catch { }
+                }
+            }
+        }
+
         bool updated = await UpdateMetadataInPlaceAsync(outputFile);
         if (updated)
         {
             AnsiConsole.MarkupLine($"{GetLogPrefix().EscapeMarkup()}[green]Updated metadata: [white]{_track.Title.EscapeMarkup()}[/][/]");
             if (!string.IsNullOrEmpty(mismatch))
             {
-                AnsiConsole.MarkupLine(mismatch);
+                string[] lines = mismatch.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.RemoveEmptyEntries);
+                List<string> displayLines = [];
+                foreach (string line in lines)
+                {
+                    if (line.Contains("Scheduled for download from source", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (File.Exists(coverPath))
+                        {
+                            displayLines.Add("[gray]    - Cover Art: '[/][purple]Missing[/][gray]' -> '[/][green]Downloaded & Embedded[/][gray]'[/]");
+                        }
+                        else
+                        {
+                            displayLines.Add("[gray]    - Cover Art: '[/][purple]Missing[/][gray]' -> '[/][red]Download Failed[/][gray]'[/]");
+                        }
+                    }
+                    else
+                    {
+                        displayLines.Add(line);
+                    }
+                }
+
+                if (displayLines.Count > 0)
+                {
+                    AnsiConsole.MarkupLine(string.Join(Environment.NewLine, displayLines));
+                }
             }
             return TrackProcessStatus.MetadataUpdated;
         }
@@ -253,6 +311,54 @@ internal class TrackProcessor
             }
 
             return true;
+        }
+        catch (Win32Exception)
+        {
+            AnsiConsole.MarkupLine($"[red]Could not find '{SettingsManager.Current.YtDlpExe}'.[/]");
+            return false;
+        }
+    }
+
+    private async Task<bool> DownloadThumbnailOnlyAsync(string tempFileBase)
+    {
+        List<string> args = [
+            "--skip-download",
+            "--write-thumbnail",
+            "--convert-thumbnails", "png"
+        ];
+
+        if (!string.IsNullOrWhiteSpace(_track.Source))
+        {
+            args.Add(_track.Source);
+        }
+
+        if (!string.IsNullOrWhiteSpace(SettingsManager.Current.FfmpegDir))
+        {
+            args.AddRange(["--ffmpeg-location", SettingsManager.Current.FfmpegDir]);
+        }
+
+        if (!string.IsNullOrWhiteSpace(SettingsManager.Current.CookiesBrowser))
+        {
+            args.AddRange(["--cookies-from-browser", SettingsManager.Current.CookiesBrowser]);
+        }
+        else
+        {
+            string relativePath = SettingsManager.Current.CookieFile;
+            if (File.Exists(relativePath))
+            {
+                args.AddRange(["--cookies", Path.GetFullPath(relativePath)]);
+            }
+        }
+
+        args.AddRange(["-o", $"{tempFileBase}.%(ext)s"]);
+
+        ProcessArguments command = args;
+        string ytDlpPath = ExecutableFinder.GetFullPath(SettingsManager.Current.YtDlpExe, SettingsManager.Current.YtDlpDir);
+
+        try
+        {
+            int exitCode = await Task.Run(() => ProcessExecutor.Run(ytDlpPath, command));
+            return exitCode == 0;
         }
         catch (Win32Exception)
         {
