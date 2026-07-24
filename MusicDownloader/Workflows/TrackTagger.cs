@@ -36,7 +36,7 @@ internal static class TrackTagger
                 {
                     byte[] bytes = File.ReadAllBytes(coverPath);
 
-                    TagLib.Picture picture = new()
+                    TagLib.Picture basePicture = new()
                     {
                         Type = TagLib.PictureType.FrontCover,
                         MimeType = coverPath.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? "image/png" : "image/jpeg",
@@ -45,7 +45,15 @@ internal static class TrackTagger
                         Data = [.. bytes]
                     };
 
-                    file.Tag.Pictures = [picture];
+                    bool isOggOrFlac = filePath.EndsWith(".opus", StringComparison.OrdinalIgnoreCase)
+                                    || filePath.EndsWith(".ogg", StringComparison.OrdinalIgnoreCase)
+                                    || filePath.EndsWith(".flac", StringComparison.OrdinalIgnoreCase);
+
+                    TagLib.IPicture finalPicture = isOggOrFlac
+                        ? new TagLib.Flac.Picture(basePicture)
+                        : basePicture;
+
+                    file.Tag.Pictures = [finalPicture];
                 }
                 else
                 {
