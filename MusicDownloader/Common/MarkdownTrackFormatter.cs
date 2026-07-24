@@ -50,7 +50,12 @@ internal static class MarkdownTrackFormatter
 
     public static string Format(Track track, string body)
     {
-        string yaml = Serializer.Serialize(track).TrimEnd('\n', '\r');
+        Track trackToSerialize = track with
+        {
+            Tags = [.. track.Tags.OrderBy(t => t, StringComparer.OrdinalIgnoreCase)]
+        };
+
+        string yaml = Serializer.Serialize(trackToSerialize).TrimEnd('\n', '\r');
 
         StringBuilder sb = new();
         sb.AppendLine("---");
