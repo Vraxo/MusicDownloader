@@ -7,9 +7,9 @@ namespace MusicDownloader.Workflows;
 
 internal static class AutomaticProcessor
 {
-    public static async Task RunAsync()
+    public static async Task RunAsync(ITrackRepository repository)
     {
-        List<Track> allTracks = await MarkdownTrackReader.ReadAllTracksAsync();
+        List<Track> allTracks = await repository.ReadAllTracksAsync();
         if (allTracks.Count == 0)
         {
             return;
@@ -28,7 +28,7 @@ internal static class AutomaticProcessor
 
         PrintPreFlightStats(allTracks.Count, alreadyDownloadedCount, pendingTracks.Count, metadataUpdatesCount, newDownloadsCount);
 
-        (int downloaded, int metadataUpdated, int failed, int updatedCount) = await ProcessQueueAsync(pendingTracks, alreadyDownloadedCount);
+        (int downloaded, int metadataUpdated, int failed, int updatedCount) = await ProcessQueueAsync(pendingTracks, alreadyDownloadedCount, repository);
 
         PrintPostFlightStats(downloaded, metadataUpdated, failed, updatedCount);
         Log.Success("All downloads and processing finished.");
@@ -224,7 +224,7 @@ internal static class AutomaticProcessor
         Console.WriteLine();
     }
 
-    private static async Task<(int Downloaded, int MetadataUpdated, int Failed, int UpToDate)> ProcessQueueAsync(List<Track> queue, int alreadyDownloadedCount)
+    private static async Task<(int Downloaded, int MetadataUpdated, int Failed, int UpToDate)> ProcessQueueAsync(List<Track> queue, int alreadyDownloadedCount, ITrackRepository repository)
     {
         int downloaded = 0;
         int metadataUpdated = 0;
@@ -239,7 +239,7 @@ internal static class AutomaticProcessor
 
             try
             {
-                TrackProcessor trackProcessor = new(track, i + 1, total);
+                TrackProcessor trackProcessor = new(track, i + 1, total, repository);
                 status = await trackProcessor.ProcessAsync();
             }
             catch (Exception ex)

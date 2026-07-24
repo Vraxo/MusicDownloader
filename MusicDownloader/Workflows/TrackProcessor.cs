@@ -14,13 +14,15 @@ internal class TrackProcessor
     private readonly string _albumDir;
     private readonly int _index;
     private readonly int _total;
+    private readonly ITrackRepository _repository;
 
-    public TrackProcessor(Track track, int index = 0, int total = 0)
+    public TrackProcessor(Track track, int index = 0, int total = 0, ITrackRepository repository = null!)
     {
         _track = track;
         _albumDir = Path.Combine(SettingsManager.Current.BaseDataDir, PathUtils.SafeFileName(_track.Album));
         _index = index;
         _total = total;
+        _repository = repository;
     }
 
     public static string GetOutputFile(Track track)
@@ -111,7 +113,7 @@ internal class TrackProcessor
                     string? downloadedCover = FindCoverFile(tempFileBase);
                     if (downloadedCover is not null)
                     {
-                        _track = await TrackTagger.UpdateMarkdownCoverPropertyAsync(_track, downloadedCover);
+                        _track = await _repository.UpdateCoverPropertyAsync(_track, downloadedCover);
                         Log.Success($"Successfully downloaded and placed cover art: '{coverFileName}'");
                     }
                 }
@@ -220,7 +222,7 @@ internal class TrackProcessor
                 string? downloadedCover = FindCoverFile(tempFileBase);
                 if (downloadedCover is not null)
                 {
-                    _track = await TrackTagger.UpdateMarkdownCoverPropertyAsync(_track, downloadedCover);
+                    _track = await _repository.UpdateCoverPropertyAsync(_track, downloadedCover);
                 }
             }
             else
@@ -230,7 +232,7 @@ internal class TrackProcessor
                 string expectedCoverLink = $"[[Covers/{coverFileName}]]";
                 if (!string.Equals(_track.Cover, expectedCoverLink, StringComparison.OrdinalIgnoreCase))
                 {
-                    _track = await TrackTagger.UpdateMarkdownCoverPropertyAsync(_track, finalCoverPath);
+                    _track = await _repository.UpdateCoverPropertyAsync(_track, finalCoverPath);
                 }
             }
 

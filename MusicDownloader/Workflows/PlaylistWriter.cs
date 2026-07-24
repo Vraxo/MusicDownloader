@@ -6,9 +6,9 @@ namespace MusicDownloader.Workflows;
 
 internal static class PlaylistWriter
 {
-    public static async Task GeneratePlaylistsAsync()
+    public static async Task GeneratePlaylistsAsync(ITrackRepository repository)
     {
-        List<Track> allTracks = await MarkdownTrackReader.ReadAllTracksAsync();
+        List<Track> allTracks = await repository.ReadAllTracksAsync();
 
         if (allTracks.Count == 0)
         {

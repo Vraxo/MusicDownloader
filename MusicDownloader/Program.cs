@@ -17,18 +17,23 @@ try
         Log.Success($"Created default database directory: '{SettingsManager.Current.DatabaseDir}'");
         Log.Info($"Please place your `.toml` track files in '{SettingsManager.Current.DatabaseDir}' and run the application again.");
     }
-    else if (args.Any(a => a.Equals("playlist", StringComparison.OrdinalIgnoreCase)))
-    {
-        await PlaylistWriter.GeneratePlaylistsAsync();
-    }
-    else if (args.Any(a => a.Equals("process", StringComparison.OrdinalIgnoreCase)))
-    {
-        ManualProcessor.Run();
-    }
     else
     {
-        Log.Info("Starting download processing... (use 'playlist' or 'process' arguments for other tools)");
-        await AutomaticProcessor.RunAsync();
+        ITrackRepository repository = new MarkdownTrackRepository();
+
+        if (args.Any(a => a.Equals("playlist", StringComparison.OrdinalIgnoreCase)))
+        {
+            await PlaylistWriter.GeneratePlaylistsAsync(repository);
+        }
+        else if (args.Any(a => a.Equals("process", StringComparison.OrdinalIgnoreCase)))
+        {
+            ManualProcessor.Run();
+        }
+        else
+        {
+            Log.Info("Starting download processing... (use 'playlist' or 'process' arguments for other tools)");
+            await AutomaticProcessor.RunAsync(repository);
+        }
     }
 }
 catch (Exception ex)
