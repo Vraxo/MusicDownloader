@@ -7,19 +7,23 @@ Console.OutputEncoding = Encoding.UTF8;
 
 try
 {
-    bool isFirstRun = !Directory.Exists(SettingsManager.Current.DatabaseDir);
+    string csvPath = Path.Combine(SettingsManager.Current.DatabaseDir, "tracks.csv");
+    bool isFirstRun = !File.Exists(csvPath);
 
     Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
     Directory.CreateDirectory(SettingsManager.Current.DatabaseDir);
 
     if (isFirstRun)
     {
+        ITrackRepository repository = new CsvTrackRepository();
+        await repository.ReadAllTracksAsync();
+
         Log.Success($"Created default database directory: '{SettingsManager.Current.DatabaseDir}'");
-        Log.Info($"Please place your `.toml` track files in '{SettingsManager.Current.DatabaseDir}' and run the application again.");
+        Log.Info($"Please populate your tracks in CSV format at '{csvPath}' and run the application again.");
     }
     else
     {
-        ITrackRepository repository = new MarkdownTrackRepository();
+        ITrackRepository repository = new CsvTrackRepository();
 
         if (args.Any(a => a.Equals("playlist", StringComparison.OrdinalIgnoreCase)))
         {
