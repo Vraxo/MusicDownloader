@@ -18,6 +18,11 @@ internal sealed class MarkdownTrackRepository : ITrackRepository
         .ConfigureDefaultValuesHandling(DefaultValuesHandling.OmitNull | DefaultValuesHandling.OmitDefaults | DefaultValuesHandling.OmitEmptyCollections)
         .Build();
 
+    public string GetCanonicalCoverLink(string coverFileName)
+    {
+        return $"[[Covers/{coverFileName}]]";
+    }
+
     public async Task<List<Track>> ReadAllTracksAsync()
     {
         string dbDir = SettingsManager.Current.DatabaseDir;
@@ -110,7 +115,7 @@ internal sealed class MarkdownTrackRepository : ITrackRepository
             string content = await File.ReadAllTextAsync(track.DatabaseFilePath);
             (Track parsedTrack, string body) = Parse(content);
 
-            string expectedCoverLink = $"[[Covers/{destinationFileName}]]";
+            string expectedCoverLink = GetCanonicalCoverLink(destinationFileName);
             Track updatedTrack = parsedTrack with { Cover = expectedCoverLink };
             string formatted = Format(updatedTrack, body);
 

@@ -67,7 +67,7 @@ internal sealed class CoverArtHandler(Track track, ITrackRepository repository)
         {
             Log.Info($"Re-using existing cover art: 'Covers/{coverFileName}'");
 
-            string expectedCoverLink = $"[[Covers/{coverFileName}]]";
+            string expectedCoverLink = repository.GetCanonicalCoverLink(coverFileName);
             if (!string.Equals(CurrentTrack.Cover, expectedCoverLink, StringComparison.OrdinalIgnoreCase))
             {
                 CurrentTrack = await repository.UpdateCoverPropertyAsync(CurrentTrack, finalCoverPath);

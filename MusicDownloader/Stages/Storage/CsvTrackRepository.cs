@@ -17,6 +17,11 @@ internal sealed class CsvTrackRepository : ITrackRepository
         return Path.Combine(SettingsManager.Current.DatabaseDir, "tracks.csv");
     }
 
+    public string GetCanonicalCoverLink(string coverFileName)
+    {
+        return coverFileName;
+    }
+
     public async Task<List<Track>> ReadAllTracksAsync()
     {
         string csvPath = GetCsvPath();
@@ -142,7 +147,7 @@ internal sealed class CsvTrackRepository : ITrackRepository
                 File.Copy(downloadedCoverPath, destinationPath, overwrite: true);
             }
 
-            string expectedCoverLink = $"[[Covers/{destinationFileName}]]";
+            string expectedCoverLink = GetCanonicalCoverLink(destinationFileName);
             Track updatedTrack = track with { Cover = expectedCoverLink };
 
             List<Track> allTracks = await ReadAllTracksAsync();
