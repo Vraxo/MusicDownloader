@@ -69,7 +69,7 @@ internal static class AudioProber
             CheckField(tag.Comment, track.Source, "Comment/Source", mismatches);
 
             bool hasCover = tag.Pictures.Length > 0;
-            bool expectsCover = !string.IsNullOrWhiteSpace(track.Cover);
+            bool expectsCover = !string.Equals(track.Cover, "none", StringComparison.OrdinalIgnoreCase);
 
             if (expectsCover)
             {

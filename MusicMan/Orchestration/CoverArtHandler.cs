@@ -11,6 +11,11 @@ internal sealed class CoverArtHandler(Track track, CsvTrackRepository repository
 
     public bool CoverExistsLocally()
     {
+        if (string.Equals(CurrentTrack.Cover, "none", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
         string coverFileName = PathUtils.GetCoverFileName(CurrentTrack);
         string coverPath = Path.Combine(SettingsManager.Current.CoversDir, coverFileName);
         return File.Exists(coverPath);
@@ -36,7 +41,6 @@ internal sealed class CoverArtHandler(Track track, CsvTrackRepository repository
                 if (downloadedCover is not null)
                 {
                     CurrentTrack = await repository.UpdateCoverPropertyAsync(CurrentTrack, downloadedCover);
-                    Log.Success($"Successfully downloaded and placed cover art: '{coverFileName}'");
                 }
             }
             else
@@ -52,6 +56,11 @@ internal sealed class CoverArtHandler(Track track, CsvTrackRepository repository
 
     public async Task<Track> ResolveCoverArtAsync(DownloadWorkspace workspace)
     {
+        if (string.Equals(CurrentTrack.Cover, "none", StringComparison.OrdinalIgnoreCase))
+        {
+            return CurrentTrack;
+        }
+
         string coverFileName = PathUtils.GetCoverFileName(CurrentTrack);
         string finalCoverPath = Path.Combine(SettingsManager.Current.CoversDir, coverFileName);
 
@@ -67,10 +76,13 @@ internal sealed class CoverArtHandler(Track track, CsvTrackRepository repository
         {
             Log.Info($"Re-using existing cover art: 'Covers/{coverFileName}'");
 
-            string expectedCoverLink = repository.GetCanonicalCoverLink(coverFileName);
-            if (!string.Equals(CurrentTrack.Cover, expectedCoverLink, StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(CurrentTrack.Cover))
             {
-                CurrentTrack = await repository.UpdateCoverPropertyAsync(CurrentTrack, finalCoverPath);
+                string expectedCoverLink = repository.GetCanonicalCoverLink(coverFileName);
+                if (!string.Equals(CurrentTrack.Cover, expectedCoverLink, StringComparison.OrdinalIgnoreCase))
+                {
+                    CurrentTrack = await repository.UpdateCoverPropertyAsync(CurrentTrack, finalCoverPath);
+                }
             }
         }
 

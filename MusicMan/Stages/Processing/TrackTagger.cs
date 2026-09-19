@@ -26,7 +26,9 @@ internal static class TrackTagger
             file.Tag.Genres = track.Tags?.ToArray() ?? [];
             file.Tag.Comment = track.Source ?? string.Empty;
 
-            if (!string.IsNullOrWhiteSpace(track.Cover))
+            bool expectsCover = !string.Equals(track.Cover, "none", StringComparison.OrdinalIgnoreCase);
+
+            if (expectsCover)
             {
                 string coverFileName = PathUtils.GetCoverFileName(track);
                 string coverPath = Path.Combine(SettingsManager.Current.CoversDir, coverFileName);

@@ -122,17 +122,10 @@ internal sealed class CsvTrackRepository
 
         string ext = Path.GetExtension(downloadedCoverPath).ToLowerInvariant();
         string coversDir = SettingsManager.Current.CoversDir;
-        string destinationFileName;
-
-        if (!string.IsNullOrWhiteSpace(track.Cover))
-        {
-            destinationFileName = PathUtils.GetCoverFileName(track);
-        }
-        else
-        {
-            string safeTitle = PathUtils.SafeFileName(track.Title);
-            destinationFileName = $"{safeTitle}{ext}";
-        }
+        string defaultCoverFileName = $"{PathUtils.SafeFileName(track.Title)}{ext}";
+        string destinationFileName = !string.IsNullOrWhiteSpace(track.Cover)
+            ? PathUtils.GetCoverFileName(track)
+            : defaultCoverFileName;
 
         try
         {
@@ -142,6 +135,14 @@ internal sealed class CsvTrackRepository
             if (Path.GetFullPath(downloadedCoverPath) != Path.GetFullPath(destinationPath))
             {
                 File.Copy(downloadedCoverPath, destinationPath, overwrite: true);
+            }
+
+            Log.Info($"Cover saved: '{destinationFileName}'");
+
+            bool isDefaultConvention = string.Equals(destinationFileName, defaultCoverFileName, StringComparison.OrdinalIgnoreCase);
+            if (isDefaultConvention && string.IsNullOrWhiteSpace(track.Cover))
+            {
+                return track;
             }
 
             string expectedCoverLink = GetCanonicalCoverLink(destinationFileName);
@@ -163,7 +164,6 @@ internal sealed class CsvTrackRepository
             }
 
             await WriteAllTracksAsync(csvPath, allTracks);
-            Log.Info($"Cover saved: '{destinationFileName}'");
 
             return updatedTrack with { DatabaseFilePath = csvPath };
         }
