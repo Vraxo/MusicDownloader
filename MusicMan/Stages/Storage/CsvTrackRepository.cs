@@ -8,8 +8,8 @@ namespace MusicMan.Stages.Storage;
 internal sealed class CsvTrackRepository
 {
     private static readonly string[] Headers = [
-        "title", "artist", "album", "date",
-        "track_number", "album_artist", "composer", "cover", "source", "range", "tempo", "loop", "tags"
+        "source", "title", "artist", "album", "date",
+        "track_number", "album_artist", "composer", "cover", "range", "tempo", "loop", "tags"
     ];
 
     private static string GetCsvPath()
@@ -202,6 +202,7 @@ internal sealed class CsvTrackRepository
         foreach (Track track in tracks)
         {
             List<string> row = [
+                FormatCsvValue(track.Source),
                 FormatCsvValue(track.Title),
                 FormatCsvValue(track.Artist),
                 FormatCsvValue(track.Album),
@@ -210,7 +211,6 @@ internal sealed class CsvTrackRepository
                 FormatCsvValue(track.AlbumArtist),
                 FormatCsvValue(track.Composer),
                 FormatCsvValue(track.Cover),
-                FormatCsvValue(track.Source),
                 FormatCsvValue(track.Range.Count > 0 ? string.Join(";", track.Range) : string.Empty),
                 FormatCsvValue(track.Tempo?.ToString(CultureInfo.InvariantCulture)),
                 FormatCsvValue(track.Loop.ToString()),
