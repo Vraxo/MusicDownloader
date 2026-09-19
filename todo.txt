@@ -1,0 +1,20 @@
+is this a bug:
+
+[27/79] Downloading & processing: ELA PEIDA TEKK
+Successfully loaded 415 tracks from singular CSV database: 'E:\Documents\Music\tracks.csv'
+Linked CSV database to: 'ELA PEIDA TEKK.png'
+Done -> E:\Audio\Music\ELA PEIDA TEKK.opus
+
+
+---
+
+
+[72/79] Downloading & processing: TRENABOLIZMO V1
+[download] Sleeping 4.00 seconds as required by the site...
+Successfully loaded 415 tracks from singular CSV database: 'E:\Documents\Music\tracks.csv'
+Linked CSV database to: 'TRENABOLIZMO V1.png'
+Done -> E:\Audio\Music\TRENABOLIZMO V1.opus
+
+[73/79] Downloading & processing: Trenabolizmo V1
+Re-using existing cover art: 'Covers/Trenabolizmo V1.png'
+Done -> E:\Audio\Music\Music\Trenabolizmo V1.opus

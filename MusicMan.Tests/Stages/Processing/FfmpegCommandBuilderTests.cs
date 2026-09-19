@@ -1,0 +1,66 @@
+﻿using FluentAssertions;
+
+namespace MusicMan.Tests.Stages.Processing;
+
+public sealed class FfmpegCommandBuilderTests
+{
+    [Fact]
+    public void Build_WithBasicTrack_ReturnsSimpleCommand()
+    {
+        Track track = new()
+        {
+            Title = "Song Title",
+            Artist = "Artist Name",
+            Album = "Album Name",
+            Source = "https://www.youtube.com/watch?v=123",
+            TrackNumber = 1,
+            Loop = 1
+        };
+
+        FfmpegCommandBuilder builder = new(track, "input.opus", "output.opus");
+        string command = builder.Build();
+
+        command.Should().Contain("-vn");
+        command.Should().Contain("-c:a copy");
+    }
+
+    [Fact]
+    public void Build_WithLoop_ReturnsComplexFilter()
+    {
+        Track track = new()
+        {
+            Title = "Song Title",
+            Artist = "Artist Name",
+            Album = "Album Name",
+            Source = "https://www.youtube.com/watch?v=123",
+            Loop = 3,
+            Range = ["00:15", "01:30"]
+        };
+
+        FfmpegCommandBuilder builder = new(track, "input.opus", "output.opus");
+        string command = builder.Build();
+
+        command.Should().Contain("-filter_complex");
+        command.Should().Contain("aloop=loop=2");
+        command.Should().Contain("-c:a libopus");
+    }
+
+    [Fact]
+    public void Build_WithTempo_ReturnsTempoFilter()
+    {
+        Track track = new()
+        {
+            Title = "Song Title",
+            Artist = "Artist Name",
+            Album = "Album Name",
+            Source = "https://www.youtube.com/watch?v=123",
+            Tempo = 110.0
+        };
+
+        FfmpegCommandBuilder builder = new(track, "input.opus", "output.opus");
+        string command = builder.Build();
+
+        command.Should().Contain("-filter:a");
+        command.Should().Contain("-c:a libopus");
+    }
+}
