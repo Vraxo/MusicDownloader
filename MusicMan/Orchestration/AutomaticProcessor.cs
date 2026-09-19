@@ -60,6 +60,5 @@ internal static class AutomaticProcessor
         }
 
         AnsiConsole.MarkupLine($"[gray]  Up to date:[/]       [white]{upToDate}[/]");
-        Console.WriteLine();
     }
 }

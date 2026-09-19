@@ -143,7 +143,7 @@ internal sealed class TrackProcessor(Track track, int index, int total, CsvTrack
 
         try
         {
-            AnsiConsole.MarkupLine($"{GetLogPrefix().EscapeMarkup()}[cyan]Downloading & processing: [white]{_track.Title.EscapeMarkup()}[/][/]");
+            AnsiConsole.MarkupLine($"{GetLogPrefix().EscapeMarkup()}[cyan]Downloading: [white]{_track.Title.EscapeMarkup()}[/][/]");
 
             if (!await workspace.DownloadAsync(_track, downloadThumbnail: !coverHandler.CoverExistsLocally()))
             {
