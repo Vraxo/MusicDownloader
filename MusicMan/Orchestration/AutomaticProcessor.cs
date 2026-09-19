@@ -40,8 +40,27 @@ internal static class AutomaticProcessor
     {
         AnsiConsole.MarkupLine($"[gray]Database tracks:[/] [white]{total}[/]");
         AnsiConsole.MarkupLine($"[gray]Up to date:[/]      [white]{upToDate}[/]");
-        AnsiConsole.MarkupLine($"[cyan]Pending actions:[/] [white]{pending}[/] [gray]({metadataUpdates} metadata updates, {newDownloads} new downloads)[/]");
+
+        string details = FormatPendingDetails(metadataUpdates, newDownloads);
+        AnsiConsole.MarkupLine($"[cyan]Pending actions:[/] [white]{pending}[/]{details}");
         Console.WriteLine();
+    }
+
+    private static string FormatPendingDetails(int metadataUpdates, int newDownloads)
+    {
+        List<string> parts = [];
+
+        if (metadataUpdates > 0)
+        {
+            parts.Add(metadataUpdates == 1 ? "1 update" : $"{metadataUpdates} updates");
+        }
+
+        if (newDownloads > 0)
+        {
+            parts.Add(newDownloads == 1 ? "1 download" : $"{newDownloads} downloads");
+        }
+
+        return parts.Count > 0 ? $" [gray]({string.Join(", ", parts)})[/]" : string.Empty;
     }
 
     private static void PrintPostFlightStats(int downloaded, int metadataUpdated, int failed, int upToDate)
