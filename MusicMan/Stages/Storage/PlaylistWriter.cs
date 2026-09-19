@@ -1,13 +1,12 @@
 ﻿using MusicMan.Core;
 using MusicMan.Infrastructure;
-using MusicMan.Stages.Storage;
 using System.Text;
 
-namespace MusicMan.Orchestration;
+namespace MusicMan.Stages.Storage;
 
 internal static class PlaylistWriter
 {
-    public static async Task GeneratePlaylistsAsync(ITrackRepository repository)
+    public static async Task GeneratePlaylistsAsync(CsvTrackRepository repository)
     {
         List<Track> allTracks = await repository.ReadAllTracksAsync();
 

@@ -6,7 +6,7 @@ using Spectre.Console;
 
 namespace MusicMan.Orchestration;
 
-internal sealed class TrackProcessor(Track track, int index, int total, ITrackRepository repository)
+internal sealed class TrackProcessor(Track track, int index, int total, CsvTrackRepository repository)
 {
     public static readonly string[] SupportedExtensions =
     [

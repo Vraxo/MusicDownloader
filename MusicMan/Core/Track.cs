@@ -1,5 +1,4 @@
 ﻿using System.ComponentModel;
-using YamlDotNet.Serialization;
 
 namespace MusicMan.Core;
 
@@ -32,6 +31,5 @@ internal sealed record Track
     [DefaultValue(1)]
     public int Loop { get; init; } = 1;
 
-    [YamlIgnore]
     public string? DatabaseFilePath { get; init; }
 }

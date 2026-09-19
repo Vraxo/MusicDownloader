@@ -5,7 +5,7 @@ using Spectre.Console;
 
 namespace MusicMan.Orchestration;
 
-internal sealed class CoverArtHandler(Track track, ITrackRepository repository)
+internal sealed class CoverArtHandler(Track track, CsvTrackRepository repository)
 {
     public Track CurrentTrack { get; private set; } = track;
 

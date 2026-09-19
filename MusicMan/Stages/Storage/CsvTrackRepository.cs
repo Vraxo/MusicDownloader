@@ -5,7 +5,7 @@ using System.Text;
 
 namespace MusicMan.Stages.Storage;
 
-internal sealed class CsvTrackRepository : ITrackRepository
+internal sealed class CsvTrackRepository
 {
     private static readonly string[] Headers = [
         "title", "artist", "album", "track_number",

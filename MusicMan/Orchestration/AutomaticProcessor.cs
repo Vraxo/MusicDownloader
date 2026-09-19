@@ -7,7 +7,7 @@ namespace MusicMan.Orchestration;
 
 internal static class AutomaticProcessor
 {
-    public static async Task RunAsync(ITrackRepository repository)
+    public static async Task RunAsync(CsvTrackRepository repository)
     {
         List<Track> allTracks = await repository.ReadAllTracksAsync();
         if (allTracks.Count == 0)

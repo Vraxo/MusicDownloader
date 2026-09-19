@@ -4,7 +4,7 @@ using MusicMan.Stages.Storage;
 
 namespace MusicMan.Orchestration;
 
-internal sealed class QueueProcessor(ITrackRepository repository)
+internal sealed class QueueProcessor(CsvTrackRepository repository)
 {
     public async Task<(int Downloaded, int MetadataUpdated, int Failed, int UpToDate)> ProcessAsync(List<Track> queue, int alreadyDownloadedCount)
     {

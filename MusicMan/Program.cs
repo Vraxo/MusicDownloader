@@ -17,9 +17,10 @@ internal class Program
             Directory.CreateDirectory(SettingsManager.Current.BaseDataDir);
             Directory.CreateDirectory(SettingsManager.Current.DatabaseDir);
 
+            CsvTrackRepository repository = new();
+
             if (isFirstRun)
             {
-                CsvTrackRepository repository = new();
                 await repository.ReadAllTracksAsync();
 
                 Log.Success($"Created default database directory: '{SettingsManager.Current.DatabaseDir}'");
@@ -27,8 +28,6 @@ internal class Program
             }
             else
             {
-                ITrackRepository repository = new CsvTrackRepository();
-
                 if (args.Any(a => a.Equals("playlist", StringComparison.OrdinalIgnoreCase)))
                 {
                     await PlaylistWriter.GeneratePlaylistsAsync(repository);
