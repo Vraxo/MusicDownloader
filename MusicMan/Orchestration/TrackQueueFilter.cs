@@ -25,9 +25,15 @@ internal sealed class TrackQueueFilter
         int processed = 0;
         ConcurrentQueue<string> selfHealMessages = new();
 
-        await AnsiConsole.Status()
-            .StartAsync("Verifying metadata...", async ctx =>
+        await AnsiConsole.Progress()
+            .AutoClear(true)
+            .AutoRefresh(true)
+            .ExcludeVerticalPadding(true)
+            .Columns(new SpinnerColumn(), new TaskDescriptionColumn())
+            .StartAsync(async ctx =>
             {
+                ProgressTask task = ctx.AddTask("Verifying metadata...");
+
                 await Parallel.ForEachAsync(Enumerable.Range(0, total), new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, (i, cancellationToken) =>
                 {
                     Track track = tracks[i];
@@ -44,7 +50,7 @@ internal sealed class TrackQueueFilter
                     results[i] = (isUpToDate, isNewDownload);
 
                     int current = Interlocked.Increment(ref processed);
-                    ctx.Status = $"Verifying metadata ({current}/{total})...";
+                    task.Description = $"Verifying metadata ({current}/{total})...";
                     return ValueTask.CompletedTask;
                 });
             });

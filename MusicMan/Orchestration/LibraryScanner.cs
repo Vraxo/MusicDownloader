@@ -36,9 +36,15 @@ internal sealed class LibraryScanner(string baseDir)
         int processed = 0;
         int total = allFiles.Count;
 
-        await AnsiConsole.Status()
-            .StartAsync("Scanning library source URLs...", async ctx =>
+        await AnsiConsole.Progress()
+            .AutoClear(true)
+            .AutoRefresh(true)
+            .ExcludeVerticalPadding(true)
+            .Columns(new SpinnerColumn(), new TaskDescriptionColumn())
+            .StartAsync(async ctx =>
             {
+                ProgressTask task = ctx.AddTask("Scanning library source URLs...");
+
                 await Parallel.ForEachAsync(allFiles, new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount }, (file, cancellationToken) =>
                 {
                     string? source = AudioProber.GetSource(file);
@@ -48,7 +54,7 @@ internal sealed class LibraryScanner(string baseDir)
                     }
 
                     int current = Interlocked.Increment(ref processed);
-                    ctx.Status = $"Scanning library source URLs ({current}/{total})...";
+                    task.Description = $"Scanning library source URLs ({current}/{total})...";
                     return ValueTask.CompletedTask;
                 });
             });
