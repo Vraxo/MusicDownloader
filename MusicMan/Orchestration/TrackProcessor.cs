@@ -152,7 +152,7 @@ internal sealed class TrackProcessor(Track track, int index, int total, CsvTrack
 
                 if (!await workspace.DownloadAsync(_track, downloadThumbnail: !coverHandler.CoverExistsLocally()))
                 {
-                    AnsiConsole.MarkupLine("[red]Download failed permanently.[/]");
+                    AnsiConsole.MarkupLine("[red]Download failed.[/]");
                     return TrackProcessStatus.Failed;
                 }
             }

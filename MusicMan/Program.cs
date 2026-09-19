@@ -38,7 +38,6 @@ internal class Program
                 }
                 else
                 {
-                    Log.Info("Starting download processing... (use 'playlist' or 'process' arguments for other tools)");
                     await AutomaticProcessor.RunAsync(repository);
                 }
             }

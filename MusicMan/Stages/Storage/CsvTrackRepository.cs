@@ -163,7 +163,7 @@ internal sealed class CsvTrackRepository
             }
 
             await WriteAllTracksAsync(csvPath, allTracks);
-            Log.Success($"Linked CSV database to: '{expectedCoverLink}'");
+            Log.Info($"Cover saved: '{destinationFileName}'");
 
             return updatedTrack with { DatabaseFilePath = csvPath };
         }

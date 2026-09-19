@@ -103,6 +103,8 @@ internal class ProcessExecutor
 
         return line.StartsWith("[youtube]", StringComparison.OrdinalIgnoreCase)
             || line.StartsWith("[generic]", StringComparison.OrdinalIgnoreCase)
+            || line.StartsWith("WARNING: [generic]", StringComparison.OrdinalIgnoreCase)
+            || line.StartsWith("[redirect]", StringComparison.OrdinalIgnoreCase)
             || line.StartsWith("[info]", StringComparison.OrdinalIgnoreCase)
             || line.StartsWith("[download] Destination:", StringComparison.OrdinalIgnoreCase)
             || line.StartsWith("[ExtractAudio]", StringComparison.OrdinalIgnoreCase)

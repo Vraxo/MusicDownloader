@@ -34,7 +34,6 @@ internal static class AutomaticProcessor
         (int downloaded, int metadataUpdated, int failed, int finalUpToDate) = await queueProcessor.ProcessAsync(pendingTracks, upToDateCount);
 
         PrintPostFlightStats(downloaded, metadataUpdated, failed, finalUpToDate);
-        Log.Success("All downloads and processing finished.");
     }
 
     private static void PrintPreFlightStats(int total, int upToDate, int pending, int metadataUpdates, int newDownloads)
