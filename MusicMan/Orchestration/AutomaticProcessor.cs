@@ -40,7 +40,7 @@ internal static class AutomaticProcessor
     {
         AnsiConsole.MarkupLine($"[gray]Database tracks:[/] [white]{total}[/]");
         AnsiConsole.MarkupLine($"[gray]Up to date:[/]      [white]{upToDate}[/]");
-        AnsiConsole.MarkupLine($"[cyan]Pending actions:[/]  [white]{pending}[/] [gray]({metadataUpdates} metadata updates, {newDownloads} new downloads)[/]");
+        AnsiConsole.MarkupLine($"[cyan]Pending actions:[/] [white]{pending}[/] [gray]({metadataUpdates} metadata updates, {newDownloads} new downloads)[/]");
         Console.WriteLine();
     }
 
