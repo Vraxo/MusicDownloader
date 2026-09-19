@@ -213,7 +213,7 @@ internal sealed class CsvTrackRepository
                 FormatCsvValue(track.Cover),
                 FormatCsvValue(track.Range.Count > 0 ? string.Join(";", track.Range) : string.Empty),
                 FormatCsvValue(track.Tempo?.ToString(CultureInfo.InvariantCulture)),
-                FormatCsvValue(track.Loop.ToString()),
+                FormatCsvValue(track.Loop > 1 ? track.Loop.ToString() : string.Empty),
                 FormatCsvValue(track.Tags.Count > 0 ? string.Join(";", track.Tags) : string.Empty)
             ];
             sb.AppendLine(string.Join(",", row));
