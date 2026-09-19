@@ -103,8 +103,6 @@ internal sealed class CsvTrackRepository
                     DatabaseFilePath = csvPath
                 });
             }
-
-            Log.Success($"Successfully loaded {tracks.Count} tracks from singular CSV database: '{csvPath}'");
         }
         catch (Exception ex)
         {
