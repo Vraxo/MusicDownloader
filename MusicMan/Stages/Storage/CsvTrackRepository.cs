@@ -9,7 +9,7 @@ internal sealed class CsvTrackRepository
 {
     private static readonly string[] Headers = [
         "title", "artist", "album", "track_number",
-        "album_artist", "composer", "date", "tags", "cover", "source", "range", "tempo", "loop"
+        "album_artist", "composer", "date", "cover", "source", "range", "tempo", "loop", "tags"
     ];
 
     private static string GetCsvPath()
@@ -209,12 +209,12 @@ internal sealed class CsvTrackRepository
                 FormatCsvValue(track.AlbumArtist),
                 FormatCsvValue(track.Composer),
                 FormatCsvValue(track.Date),
-                FormatCsvValue(track.Tags.Count > 0 ? string.Join(";", track.Tags) : string.Empty),
                 FormatCsvValue(track.Cover),
                 FormatCsvValue(track.Source),
                 FormatCsvValue(track.Range.Count > 0 ? string.Join(";", track.Range) : string.Empty),
                 FormatCsvValue(track.Tempo?.ToString(CultureInfo.InvariantCulture)),
-                FormatCsvValue(track.Loop.ToString())
+                FormatCsvValue(track.Loop.ToString()),
+                FormatCsvValue(track.Tags.Count > 0 ? string.Join(";", track.Tags) : string.Empty)
             ];
             sb.AppendLine(string.Join(",", row));
         }
