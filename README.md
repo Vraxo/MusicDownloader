@@ -49,7 +49,7 @@ Fields containing commas or quotes must be quoted as usual.
 | `track_number` | Track number tag |
 | `album_artist` | Album artist tag |
 | `composer` | Composer tag |
-| `cover` | Image file name inside `Music/covers/`. Blank means `<title>.png`; `none` embeds no cover |
+| `cover` | Image file name inside `Music/covers/`. Blank means `<title>` plus the thumbnail's extension; `none` embeds no cover |
 | `range` | Trim points separated by `;`, e.g. `00:15;01:30`. Leave blank for the full track |
 | `tempo` | Speed in percent: `110` is 10% faster, `95` is 5% slower |
 | `loop` | Repeat count. Blank or `1` means no looping |
@@ -78,9 +78,34 @@ https://www.youtube.com/watch?v=bbbbbbbbbbb,Second Track,Example Artist,First Al
 | `CookieFile` | `Data/cookies.txt` | Cookie file, used when `CookiesBrowser` is empty |
 | `PreservePitchWhenChangingTempo` | `false` | `false` resamples, so pitch changes with speed; `true` keeps the pitch |
 | `DelayBetweenDownloadsMs` | `2500` | Pause after each successful download |
+| `CoverFit` | `Original` | Shape of newly downloaded thumbnails: `Original`, `SquareCrop`, or `SquarePad` |
+| `CoverSize` | `640` | Edge length of a fitted square cover in pixels; `0` keeps the source resolution |
+| `CoverPadColor` | `0x101010` | Background colour used by `SquarePad` |
 
 If yt-dlp cannot read browser cookies, export a `cookies.txt` instead: set `CookiesBrowser` to `""`
 and place the file at `CookieFile`.
+
+### 🖼️ Cover art shape
+
+Covers come from the source thumbnail, which is usually 16:9, while most players show covers as a
+square. `CoverFit` decides what happens to a newly downloaded thumbnail before it is written to
+`Music/covers/`:
+
+| Value | Result |
+| --- | --- |
+| `Original` | Stored untouched. Default, and the only value that keeps every pixel of the frame |
+| `SquareCrop` | Centred square crop, then scaled to `CoverSize`. Sharp edges, but the sides are lost — text or logos near the frame edge can disappear |
+| `SquarePad` | Scaled down to fit a `CoverSize` square and letterboxed on `CoverPadColor`. Nothing is cropped, but the image is smaller and gets bars |
+
+With `CoverSize` set to `0`, the image is squared off at its own resolution instead of being scaled
+to a fixed edge length.
+
+Fitting runs once, while the thumbnail is still in the temporary download folder, so the file in
+`Music/covers/` is exactly what gets embedded in the audio file. Existing covers are never
+re-processed, and covers you place yourself are left alone: to re-fit an existing cover, delete the
+file (or change the `cover` column) so it is downloaded again. If ffmpeg cannot fit an image, the
+original thumbnail is kept and a warning is printed. Fitting applies to `.png`, `.jpg`, and `.jpeg`
+covers; any other format (a WebP thumbnail, for example) is stored as downloaded.
 
 ## 📁 Output layout
 
