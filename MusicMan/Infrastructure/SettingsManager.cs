@@ -6,7 +6,14 @@ namespace MusicMan.Infrastructure;
 internal static class SettingsManager
 {
     private static readonly string SettingsFile = Path.Combine("Data", "settings.json");
-    private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNameCaseInsensitive = true,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true,
+        Converters = { new CoverFitModeJsonConverter() }
+    };
 
     public static Settings Current { get; }
 

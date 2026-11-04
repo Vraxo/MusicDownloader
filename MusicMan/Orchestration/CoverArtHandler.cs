@@ -28,25 +28,12 @@ internal sealed class CoverArtHandler(Track track, CsvTrackRepository repository
             return;
         }
 
-        string coverFileName = PathUtils.GetCoverFileName(CurrentTrack);
         string tempFileBase = Path.Combine(Path.GetDirectoryName(workspace.TempFileBase)!, "temp_thumb");
 
         try
         {
             AnsiConsole.MarkupLine($"[cyan]Downloading missing cover art from source for: [white]{CurrentTrack.Title.EscapeMarkup()}[/][/]");
-            bool downloaded = await DownloadWorkspace.DownloadThumbnailOnlyAsync(CurrentTrack, tempFileBase);
-            if (downloaded)
-            {
-                string? downloadedCover = DownloadWorkspace.FindDownloadedCover(tempFileBase);
-                if (downloadedCover is not null)
-                {
-                    CurrentTrack = await repository.UpdateCoverPropertyAsync(CurrentTrack, downloadedCover);
-                }
-            }
-            else
-            {
-                Log.Warning($"Failed to download thumbnail for '{CurrentTrack.Title}' from source.");
-            }
+            CurrentTrack = await DownloadAndStoreCoverAsync(CurrentTrack, tempFileBase);
         }
         finally
         {
@@ -66,11 +53,7 @@ internal sealed class CoverArtHandler(Track track, CsvTrackRepository repository
 
         if (!CoverExistsLocally())
         {
-            string? downloadedCover = DownloadWorkspace.FindDownloadedCover(workspace.TempFileBase);
-            if (downloadedCover is not null)
-            {
-                CurrentTrack = await repository.UpdateCoverPropertyAsync(CurrentTrack, downloadedCover);
-            }
+            CurrentTrack = await StoreDownloadedCoverAsync(workspace.TempFileBase);
         }
         else
         {
@@ -87,6 +70,42 @@ internal sealed class CoverArtHandler(Track track, CsvTrackRepository repository
         }
 
         return CurrentTrack;
+    }
+
+    private async Task<Track> DownloadAndStoreCoverAsync(Track track, string tempFileBase)
+    {
+        bool downloaded = await DownloadWorkspace.DownloadThumbnailOnlyAsync(track, tempFileBase);
+        if (!downloaded)
+        {
+            Log.Warning($"Failed to download thumbnail for '{track.Title}' from source.");
+            return track;
+        }
+
+        return await StoreDownloadedCoverAsync(tempFileBase);
+    }
+
+    private async Task<Track> StoreDownloadedCoverAsync(string tempFileBase)
+    {
+        string? downloadedCover = DownloadWorkspace.FindDownloadedCover(tempFileBase);
+        if (downloadedCover is null)
+        {
+            return CurrentTrack;
+        }
+
+        // Fitting happens before the file is copied into the covers folder, so the stored cover
+        // and the embedded picture stay byte-identical and the up-to-date check keeps working.
+        string? fittedCover = null;
+        try
+        {
+            CoverFitter fitter = new(SettingsManager.Current.CoverFit);
+            fittedCover = await fitter.TryFitAsync(downloadedCover);
+
+            return await repository.UpdateCoverPropertyAsync(CurrentTrack, fittedCover ?? downloadedCover);
+        }
+        finally
+        {
+            CoverFitter.DeleteQuietly(fittedCover);
+        }
     }
 
     private static void CleanupTempThumbs(string dir)

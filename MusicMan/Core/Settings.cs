@@ -25,4 +25,10 @@ internal sealed class Settings
     public int DelayBetweenDownloadsMs { get; set; } = 2500;
 
     public string? CookiesBrowser { get; set; } = "firefox";
+
+    public CoverFitMode CoverFit { get; set; } = CoverFitMode.Original;
+
+    public int CoverSize { get; set; } = 640;
+
+    public string CoverPadColor { get; set; } = "0x101010";
 }
