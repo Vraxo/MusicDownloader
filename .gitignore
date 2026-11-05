@@ -17,7 +17,7 @@ _ReSharper*/
 # --- Coalesce Runtime Generation ---
 coalesce.md
 coalesce.toml
-coalesce-run.bat
+coalesce-run.cmd
 coalesce-run.sh
 
 # --- Operating System & Temp Files ---
