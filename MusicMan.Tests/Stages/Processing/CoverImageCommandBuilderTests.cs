@@ -17,8 +17,8 @@ public sealed class CoverImageCommandBuilderTests
 
         line.Should().NotContain("-vf");
         line.Should().Contain("-frames:v 1");
-        line.Should().NotContain("-pix_fmt rgb24");
-        line.Should().EndWith("cover.png");
+        line.Should().Contain("-pix_fmt rgb24");
+        line.Should().EndWith("\"cover.png\"");
     }
 
     [Fact]
