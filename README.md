@@ -137,6 +137,9 @@ Music/
 
 ## 🛠️ Build and test
 
+`MusicMan.slnx` at the repository root groups both projects, so `dotnet build` and `dotnet test` work
+without arguments. The commands below build one project at a time.
+
 ```bash
 dotnet build MusicMan/MusicMan.csproj
 dotnet test MusicMan.Tests/MusicMan.Tests.csproj
