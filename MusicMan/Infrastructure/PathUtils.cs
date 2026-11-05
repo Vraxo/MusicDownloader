@@ -1,4 +1,4 @@
-﻿using MusicMan.Core;
+using MusicMan.Core;
 
 namespace MusicMan.Infrastructure;
 
@@ -15,9 +15,14 @@ internal static class PathUtils
         ".aac"
     ];
 
+    // Path.GetInvalidFileNameChars() only returns the host OS's characters, so names
+    // sanitized on Linux would still be invalid when the library is used on Windows.
+    private static readonly char[] WindowsInvalidFileNameChars =
+        ['\"', '<', '>', '|', ':', '*', '?', '\\', '/', '\0'];
+
     public static string SafeFileName(string name)
     {
-        char[] invalidChars = Path.GetInvalidFileNameChars();
+        char[] invalidChars = [.. Path.GetInvalidFileNameChars(), .. WindowsInvalidFileNameChars];
         string stripped = string.Concat(name.Where(c => !invalidChars.Contains(c)));
         return stripped.Trim();
     }
@@ -29,8 +34,8 @@ internal static class PathUtils
             return $"{SafeFileName(track.Title)}.png";
         }
 
-        string cleanLink = track.Cover.Replace("[[", "").Replace("]]", "").Replace("/", "\\");
-        string rawFileName = Path.GetFileName(cleanLink);
+        string cleanLink = track.Cover.Replace("[[", "").Replace("]]", "");
+        string rawFileName = cleanLink.Split('/', '\\')[^1];
         return SafeFileName(rawFileName);
     }
 }
